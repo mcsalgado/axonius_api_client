@@ -5,6 +5,7 @@ from typing import List
 
 from .. import DEFAULT_PATH, PACKAGE_ROOT
 from ..setup_env import DEBUG
+from .typer import T_LogLevel
 
 LOG_FMT_VERBOSE: str = (
     "%(asctime)s %(levelname)-8s [%(name)s:%(funcName)s:%(pathname)s:%(lineno)d] %(message)s"
@@ -13,7 +14,6 @@ LOG_FMT_VERBOSE: str = (
 
 LOG_FMT_BRIEF: str = "%(levelname)-8s %(module)-15s %(message)s"
 """Logging format to use for brief logging."""
-
 
 LOG_FMT_CONSOLE: str = LOG_FMT_VERBOSE if DEBUG else LOG_FMT_BRIEF
 """default logging format for console logs, will be verbose if package wide debugging is enabled"""
@@ -27,28 +27,25 @@ LOG_DATEFMT_CONSOLE: str = "%m/%d/%Y %I:%M:%S %p %Z"
 LOG_DATEFMT_FILE: str = "%m/%d/%Y %I:%M:%S %p %Z"
 """default datetime format for file logs"""
 
-LOG_LEVEL_CONSOLE: str = "debug"
+LOG_LEVEL_CONSOLE: T_LogLevel = "debug"
 """default logging level for console log handlers"""
 
-LOG_LEVEL_FILE: str = "debug"
+LOG_LEVEL_FILE: T_LogLevel = "debug"
 """default logging level for file log handlers"""
 
-LOG_LEVEL_HTTP: str = "debug"
+LOG_LEVEL_HTTP: T_LogLevel = "debug"
 """default logging level for :obj:`axonius_api_client.http.Http`"""
 
-LOG_LEVEL_AUTH: str = "debug"
-"""default logging level for :obj:`axonius_api_client.auth.models.Mixins`"""
-
-LOG_LEVEL_API: str = "debug"
+LOG_LEVEL_API: T_LogLevel = "debug"
 """default logging level for :obj:`axonius_api_client.api.mixins.ModelMixins`"""
 
-LOG_LEVEL_WIZARD: str = "debug"
+LOG_LEVEL_WIZARD: T_LogLevel = "debug"
 """default logging level for :obj:`axonius_api_client.api.wizards.wizard.Wizard`"""
 
-LOG_LEVEL_PACKAGE: str = "debug"
+LOG_LEVEL_PACKAGE: T_LogLevel = "debug"
 """default logging level for the entire package"""
 
-LOG_LEVEL_PARSE: str = "debug"
+LOG_LEVEL_PARSE: T_LogLevel = "debug"
 
 LOG_LEVELS_STR: List[str] = ["debug", "info", "warning", "error", "fatal"]
 """list of valid logging level strs"""
@@ -85,25 +82,3 @@ LOG_NAME_STDOUT: str = "handler_stdout"
 
 LOG_NAME_FILE: str = "handler_file"
 """default handler name for file log"""
-
-MAX_BODY_LEN: int = 50
-"""maximum body length to trim when printing request/response bodies"""
-
-RESPONSE_ATTR_MAP: dict = {
-    "url": "{url!r}",
-    "size": "{body_size}",
-    "method": "{method!r}",
-    "status": "{status_code!r}",
-    "reason": "{reason!r}",
-    "elapsed": "{elapsed}",
-    "headers": "{headers}",
-}
-"""Mapping of response attributes to log to their formatting strings."""
-
-REQUEST_ATTR_MAP: dict = {
-    "url": "{url!r}",
-    "size": "{body_size}",
-    "method": "{method!r}",
-    "headers": "{headers}",
-}
-"""Mapping of request attributes to log to their formatting strings."""
