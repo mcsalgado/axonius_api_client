@@ -1,11 +1,21 @@
 # -*- coding: utf-8 -*-
 """Base classes for data types."""
+import copy
 import dataclasses
 import datetime
 import enum
-from typing import Any, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from .exceptions import ApiError
+
+
+def factory_maker(value: Any, dup: bool = True, deep: bool = True) -> callable:
+    """Pass."""
+
+    def factory():
+        return (copy.deepcopy(value) if deep else copy.copy(value)) if dup else value
+
+    return factory
 
 
 class BaseEnum(enum.Enum):
@@ -99,6 +109,16 @@ class BaseData:
     def get_fields(cls) -> List[dataclasses.Field]:
         """Get a list of fields defined for current this dataclass object."""
         return dataclasses.fields(cls)
+
+    @classmethod
+    def get_fields_dict(cls) -> Dict[str, dataclasses.Field]:
+        """Pass."""
+        return {x.name: x for x in cls.get_fields()}
+
+    @classmethod
+    def get_field(cls, name: str) -> Optional[dataclasses.Field]:
+        """Pass."""
+        return cls.get_fields_dict().get(name)
 
 
 @dataclasses.dataclass
