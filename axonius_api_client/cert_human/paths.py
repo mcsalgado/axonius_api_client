@@ -5,8 +5,10 @@ import logging
 import pathlib
 from typing import Any, List, Optional, Tuple, TypeVar, Union
 
+from axonius_api_client.tools import trim_float
+
 from .exceptions import PathError, PathNotFoundError
-from .utils import bytes_to_str, check_type, str_to_bytes, type_str
+from .utils import bytes_to_str, check_type, human_size, str_to_bytes, type_str
 
 LOG: logging.Logger = logging.getLogger(__name__)
 PathLike: TypeVar = TypeVar("PathLike", pathlib.Path, str, bytes)
@@ -227,8 +229,10 @@ def create_file(
 class FileInfo:
     """Pass."""
 
-    def __init__(self, path: PathLike, **kwargs):
+    def __init__(self, path: Union[PathLike, "FileInfo"], **kwargs):
         """Pass."""
+        if isinstance(path, FileInfo):
+            path = path.path
         self.path: pathlib.Path = pathify(path=path, **kwargs)
 
     def is_modified_days_ago(self, value: Optional[int]) -> Optional[bool]:
@@ -254,6 +258,21 @@ class FileInfo:
         return self.modified_delta.days if self.exists else None
 
     @property
+    def minutes_old(self) -> Optional[float]:
+        """Get the number of minutes ago path was modified if it exists."""
+        return trim_float(self.modified_delta.total_seconds() / 60) if self.exists else None
+
+    @property
+    def size_bytes(self) -> Optional[int]:
+        """Pass."""
+        return self.path.stat().st_size if self.exists else None
+
+    @property
+    def size(self) -> Optional[str]:
+        """Pass."""
+        return human_size(self.size_bytes) if self.exists else None
+
+    @property
     def exists(self) -> bool:
         """Pass."""
         return self.path.is_file()
@@ -265,6 +284,8 @@ class FileInfo:
             f"exists={self.exists}",
             f"modified_dt={str(self.modified_dt)!r}",
             f"modified_days={self.modified_days}",
+            f"minutes_old={self.minutes_old}",
+            f"size={self.size!r}",
         ]
         info = ", ".join(info)
         return f"{self.__class__.__name__}({info})"
