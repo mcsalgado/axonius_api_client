@@ -7,7 +7,7 @@ from typing import List, Optional, Tuple, Type, Union
 
 import requests
 
-from ..constants.general import JSON_TYPES
+from ..constants.typer import T_Json
 from ..exceptions import (
     InvalidCredentials,
     JsonInvalidError,
@@ -118,7 +118,7 @@ class ApiEndpoint:
 
     def perform_request(
         self, http: Http, request_obj: Optional[BaseModel] = None, raw: bool = False, **kwargs
-    ) -> Union[BaseModel, JSON_TYPES]:
+    ) -> Union[BaseModel, T_Json]:
         """Perform a request to this endpoint using an http object.
 
         Args:
@@ -129,7 +129,7 @@ class ApiEndpoint:
             **kwargs: passed to :meth:`perform_request_raw` and :meth:`handle_response`
 
         Returns:
-            Union[BaseModel, JSON_TYPES]: the data loaded from the response received
+            Union[BaseModel, T_Json]: the data loaded from the response received
         """
         self.log.debug(f"{self!r} Performing request with request_obj type {type(request_obj)}")
         kwargs["response"] = response = self.perform_request_raw(
@@ -139,7 +139,7 @@ class ApiEndpoint:
 
     def perform_request_raw(
         self, http: Http, request_obj: Optional[BaseModel] = None, **kwargs
-    ) -> Union[BaseModel, JSON_TYPES]:
+    ) -> Union[BaseModel, T_Json]:
         """Perform a request to this endpoint using an http object.
 
         Args:
@@ -149,7 +149,7 @@ class ApiEndpoint:
             **kwargs: passed to :meth:`get_http_args` and :meth:`Http.__call__`
 
         Returns:
-            Union[BaseModel, JSON_TYPES]: the data loaded from the response received
+            Union[BaseModel, T_Json]: the data loaded from the response received
         """
         http_args = self.get_http_args(request_obj=request_obj, **kwargs)
         response = http(**http_args)
@@ -182,7 +182,7 @@ class ApiEndpoint:
 
     def load_response(
         self, data: dict, http: Http, unloaded: bool = False, **kwargs
-    ) -> Union[BaseModel, JSON_TYPES]:
+    ) -> Union[BaseModel, T_Json]:
         """Load the response data into a dataclass model object.
 
         Args:
@@ -192,7 +192,7 @@ class ApiEndpoint:
             **kwargs: passed to :meth:`BaseSchema.load_response` or :meth:`BaseModel.load_response`
 
         Returns:
-            Union[BaseModel, JSON_TYPES]: Loaded dataclass model or JSON data
+            Union[BaseModel, T_Json]: Loaded dataclass model or JSON data
         """
         if not unloaded:
             load_cls = self.response_load_cls
@@ -224,7 +224,7 @@ class ApiEndpoint:
 
     def handle_response(
         self, http: Http, response: requests.Response, **kwargs
-    ) -> Union[BaseModel, JSON_TYPES]:
+    ) -> Union[BaseModel, T_Json]:
         """Get the response data.
 
         Args:
@@ -233,7 +233,7 @@ class ApiEndpoint:
             **kwargs: passed to :meth:`get_response_json` and :meth:`load_response`
 
         Returns:
-            Union[BaseModel, JSON_TYPES]: Loaded dataclass model or JSON data
+            Union[BaseModel, T_Json]: Loaded dataclass model or JSON data
 
         """
         if self.response_as_text:
@@ -247,7 +247,7 @@ class ApiEndpoint:
             )
         return data
 
-    def get_response_json(self, response: requests.Response) -> JSON_TYPES:
+    def get_response_json(self, response: requests.Response) -> T_Json:
         """Get the JSON from a response.
 
         Args:
@@ -257,7 +257,7 @@ class ApiEndpoint:
             JsonInvalidError: if response can not be deserialized from JSON
 
         Returns:
-            JSON_TYPES: deserialized JSON from response
+            T_Json: deserialized JSON from response
         """
         try:
             return response.json()

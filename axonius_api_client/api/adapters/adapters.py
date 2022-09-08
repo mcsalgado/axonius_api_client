@@ -2,12 +2,12 @@
 """API for working with adapters."""
 import datetime
 import pathlib
-from typing import Generator, List, Optional, Union
+from typing import Generator, List, Optional, TypeVar, Union
 
 from cachetools import TTLCache, cached
 
-from ...constants.general import OPT_STR_RE_LISTY
-from ...exceptions import ApiError, NotFoundError  # , StopFetch
+from ...constants.typer import T_CoerceReListy
+from ...exceptions import ApiError, NotFoundError
 from ...parsers.config import config_build, config_unchanged, config_unknown
 from ...parsers.tables import tablize_adapters
 from ...tools import path_read
@@ -26,9 +26,9 @@ from ..json_api.system_settings import SystemSettings
 from ..json_api.time_range import UnitTypes
 from ..mixins import ModelMixins
 
-HIST_MOD = AdapterFetchHistory
-HIST_GEN = Generator[HIST_MOD, None, None]
-HIST_LIST = List[HIST_MOD]
+HIST_MOD: TypeVar = AdapterFetchHistory
+HIST_GEN: TypeVar = Generator[HIST_MOD, None, None]
+HIST_LIST: TypeVar = List[HIST_MOD]
 
 CACHE_HISTORY_FILTERS: TTLCache = TTLCache(maxsize=4096, ttl=30)
 
@@ -172,11 +172,11 @@ class Adapters(ModelMixins):
 
     def get_fetch_history_generator(
         self,
-        adapters: OPT_STR_RE_LISTY = None,
-        connection_labels: OPT_STR_RE_LISTY = None,
-        clients: OPT_STR_RE_LISTY = None,
-        instances: OPT_STR_RE_LISTY = None,
-        statuses: OPT_STR_RE_LISTY = None,
+        adapters: Optional[T_CoerceReListy] = None,
+        connection_labels: Optional[T_CoerceReListy] = None,
+        clients: Optional[T_CoerceReListy] = None,
+        instances: Optional[T_CoerceReListy] = None,
+        statuses: Optional[T_CoerceReListy] = None,
         exclude_realtime: bool = False,
         relative_unit_type: UnitTypes = UnitTypes.get_default(),
         relative_unit_count: Optional[int] = None,
@@ -200,12 +200,12 @@ class Adapters(ModelMixins):
             Use ~ prefix for regex in adapters, connection_labels, clients, instances, statuses
 
         Args:
-            adapters (OPT_STR_RE_LISTY, optional): Filter for records with matching adapters
-            connection_labels (OPT_STR_RE_LISTY, optional): Filter for records with connection
+            adapters (Optional[T_CoerceReListy], optional): Filter for matching adapters
+            connection_labels (Optional[T_CoerceReListy], optional): Filter for connection
                 labels
-            clients (OPT_STR_RE_LISTY, optional): Filter for records with matching client ids
-            instances (OPT_STR_RE_LISTY, optional): Filter for records with matching instances
-            statuses (OPT_STR_RE_LISTY, optional): Filter for records with matching statuses
+            clients (Optional[T_CoerceReListy], optional): Filter for matching client ids
+            instances (Optional[T_CoerceReListy], optional): Filter for matching instances
+            statuses (Optional[T_CoerceReListy], optional): Filter for matching statuses
             exclude_realtime (bool, optional): Exclude records for realtime adapters
             relative_unit_type (UnitTypes, optional): Type of unit to use when supplying
                 relative_unit_count
