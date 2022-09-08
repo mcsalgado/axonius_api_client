@@ -373,6 +373,14 @@ GET_EXPORT = [
         show_envvar=True,
         show_default=True,
     ),
+    click.option(
+        "--enforce",
+        "enforce",
+        default=None,
+        help="Name or UUID of an Enforcement Set to run against the assets returned from this fetch",
+        show_envvar=True,
+        show_default=True,
+    ),
 ]
 
 GET_BUILDERS = [
