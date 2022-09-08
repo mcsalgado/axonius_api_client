@@ -23,6 +23,7 @@ from ...tools import coerce_bool, combo_dicts, json_dump, json_load, listify, st
 
 LOGGER = logging.getLogger(__name__)
 EXTRA_WARN = True
+EXTRAS_FOUND = {}
 
 
 class BaseCommon:
@@ -527,13 +528,16 @@ class BaseModel(dataclasses_json.DataClassJsonMixin, BaseCommon):
             stype = getattr(getattr(schema, "Meta", None), "type_", None)
             this_cls = self.__class__
             msgs = [
-                f"Extra attributes found in {this_cls}",
-                f"schema {schema}",
-                f"type {stype!r}",
-                f"{json_dump(value)}",
+                f"Extra attributes found in class: {this_cls}",
+                f"schema: {schema}",
+                f"type: {stype!r}",
+                f"extra attributes: {list(value)}",
             ]
             msg = "\n".join(msgs)
-            LOGGER.warning(msg)
-            if EXTRA_WARN:  # pragma: no cover
-                warnings.warn(message=msg, category=ApiWarning)
+            EXTRAS_FOUND[this_cls] = found = EXTRAS_FOUND.get(this_cls, [])
+            if msg not in found:
+                found.append(msg)
+                LOGGER.warning(msg)
+                if EXTRA_WARN:  # pragma: no cover
+                    warnings.warn(message=msg, category=ApiWarning)
         self._extra_attributes = value
