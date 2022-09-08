@@ -10,7 +10,8 @@ import marshmallow
 import marshmallow_jsonapi
 
 from ...constants.api import GUI_PAGE_SIZES
-from ...constants.general import STR_RE_LISTY
+from ...constants.typer import T_CoerceRe, T_CoerceReListy
+from ...data import BaseEnum
 from ...exceptions import ApiAttributeTypeError, ApiError, NotFoundError
 from ...parsers.tables import tablize
 from ...tools import coerce_bool, coerce_int, dt_now, dt_parse, listify
@@ -18,6 +19,30 @@ from .base import BaseModel, BaseSchema, BaseSchemaJson
 from .custom_fields import SchemaBool, SchemaDatetime, get_schema_dc
 from .generic import PrivateRequest, PrivateRequestSchema
 from .resources import PaginationRequest, PaginationSchema, ResourcesGet, ResourcesGetSchema
+
+
+class AccessMode(BaseEnum):
+    """Pass."""
+
+    public: str = "Public"
+    private: str = "Private"
+    restricted: str = "Restricted"
+    shared: str = "Shared"
+
+    @classmethod
+    def get_default(cls) -> "AccessMode":
+        """Pass."""
+        return cls.public
+
+    @classmethod
+    def key_mode(self) -> str:
+        """Pass."""
+        return "mode"
+
+    @classmethod
+    def get_default_access(cls) -> dict:
+        """Pass."""
+        return {cls.key_mode(): cls.get_default().value}
 
 
 class SavedQueryGetSchema(ResourcesGetSchema):
@@ -143,24 +168,21 @@ class SavedQuerySchema(BaseSchemaJson):
     user_id = marshmallow_jsonapi.fields.Str(allow_none=True, load_default=None, dump_default=None)
     uuid = marshmallow_jsonapi.fields.Str(allow_none=True, load_default=None, dump_default=None)
 
-    # 2022-09-02
     folder_id = marshmallow_jsonapi.fields.Str(
         allow_none=True, load_default=None, dump_default=None
     )
 
-    # 2022-09-02
     last_run_time = SchemaDatetime(allow_none=True, load_default=None, dump_default=None)
-
-    # 2022-09-02
     created_by = marshmallow_jsonapi.fields.Str(
         allow_none=True, load_default=None, dump_default=None
     )
-
-    # 2022-09-02
     used_in = marshmallow_jsonapi.fields.List(marshmallow_jsonapi.fields.Str())
-
-    # 2022-09-02
     module = marshmallow_jsonapi.fields.Str(allow_none=True, load_default=None, dump_default=None)
+
+    # 2022-08-22
+    access = marshmallow_jsonapi.fields.Dict(
+        load_default=AccessMode.get_default_access(), dump_default=AccessMode.get_default_access()
+    )
 
     @staticmethod
     def get_model_cls() -> type:
@@ -404,6 +426,7 @@ class SavedQuery(BaseModel, SavedQueryMixins):
     is_asset_scope_query_ready: bool = dataclasses.field(default=False, metadata={"update": False})
     is_referenced: bool = dataclasses.field(default=False, metadata={"update": False})
 
+    access: dict = dataclasses.field(default_factory=AccessMode.get_default_access)
     # 2022-09-02
     folder_id: Optional[str] = None
 
@@ -654,7 +677,7 @@ class QueryHistoryRequest(BaseModel):
     def set_list(
         self,
         prop: str,
-        values: Optional[List[str]] = None,
+        values: Optional[T_CoerceReListy] = None,
         enum: Optional[List[str]] = None,
         enum_callback: Optional[callable] = None,
     ) -> List[str]:
@@ -687,7 +710,7 @@ class QueryHistoryRequest(BaseModel):
                 check = value
             else:
                 raise ApiError(
-                    f"Value must be {STR_RE_LISTY}, not type={type(value)}, value={value!r}"
+                    f"Value must be {T_CoerceRe}, not type={type(value)}, value={value!r}"
                 )
 
             if isinstance(use_enum, list) and use_enum:
