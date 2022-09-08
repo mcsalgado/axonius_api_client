@@ -38,7 +38,19 @@ from . import (
     cls=context.AliasedGroup,
     context_settings=context.CONTEXT_SETTINGS,
     epilog="""
-All of the options listed above must be supplied BEFORE any commands or groups.
+\b
+Tips:
+- All of the options listed above must be supplied BEFORE any commands or groups.
+  - CORRECT: axonshell --log-console devices count
+  - INCORRECT: axonshell devices count --log-console
+- Use OS Environment variable AX_ENV to point to a custom .env file:
+  - bash: export AX_ENV=/path/to/.env  # for all commands in current shell
+  - bash: AX_ENV=/path/to/.env axonshell tools shell  # for single commands
+  - cmd.exe: setenv AX_ENV c:\\path\\to\\.env
+- Use OS Environment variables AX_COOKIES and AX_HEADERS as comma seperated values:
+  - key1=value1,key2=value2,key3=value4
+- Use OS Environment variables AX_URL, AX_KEY, AX_SECRET to specify credentials
+- All values stored in .env files will be treated as OS environment variables.
 """,
 )
 @click.option(
