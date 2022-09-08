@@ -2,12 +2,12 @@
 """API for working with saved queries for assets."""
 import datetime
 import warnings
-from typing import Generator, List, Optional, Union
+from typing import Generator, List, Optional, TypeVar, Union
 
 from cachetools import TTLCache, cached
 
 from ...constants.api import AS_DATACLASS, MAX_PAGE_SIZE
-from ...constants.general import OPT_STR_RE_LISTY
+from ...constants.typer import T_CoerceReListy
 from ...exceptions import (
     AlreadyExists,
     ApiError,
@@ -22,15 +22,16 @@ from ..json_api.paging_state import LOG_LEVEL_API, PAGE_SIZE, PagingState
 from ..json_api.saved_queries import QueryHistory, QueryHistoryRequest
 from ..mixins import ChildMixins
 
-MODEL = json_api.saved_queries.SavedQuery
-MODEL_GET = json_api.saved_queries.SavedQueryGet
-MODEL_FOLDER = json_api.saved_queries.Folder
-MODEL_HIST = QueryHistory
-HIST_GEN = Generator[QueryHistory, None, None]
-HIST_LIST = List[QueryHistory]
-BOTH = Union[dict, MODEL]
-MULTI = Union[str, BOTH]
-GEN = Generator[BOTH, None, None]
+T_Model: TypeVar = json_api.saved_queries.SavedQuery
+T_Request: TypeVar = json_api.saved_queries.SavedQueryGet
+T_Folder: TypeVar = json_api.saved_queries.Folder
+T_History: TypeVar = json_api.saved_queries.QueryHistory
+T_History_Gen: TypeVar = Generator[T_History, None, None]
+T_History_List: TypeVar = List[QueryHistory]
+T_ModelDict: TypeVar = Union[dict, T_Model]
+T_Multi: TypeVar = Union[str, dict, T_Model]
+T_Gen: TypeVar = Generator[T_ModelDict, None, None]
+
 CACHE_TAGS = TTLCache(maxsize=1024, ttl=60)
 CACHE_RUN_BY = TTLCache(maxsize=1024, ttl=60)
 CACHE_RUN_FROM = TTLCache(maxsize=1024, ttl=60)
@@ -60,16 +61,18 @@ class SavedQuery(ChildMixins):
 
     """
 
-    def update_name(self, sq: MULTI, value: str, as_dataclass: bool = AS_DATACLASS) -> BOTH:
+    def update_name(
+        self, sq: T_Multi, value: str, as_dataclass: bool = AS_DATACLASS
+    ) -> T_ModelDict:
         """Update the name of a Saved Query.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             value (str): new name
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         sq = self.get_by_multi(sq=sq, as_dataclass=True)
         self._check_name_exists(value=value)
@@ -77,34 +80,36 @@ class SavedQuery(ChildMixins):
         return self._update_handler(sq=sq, as_dataclass=as_dataclass)
 
     def update_description(
-        self, sq: MULTI, value: str, append: bool = False, as_dataclass: bool = AS_DATACLASS
-    ) -> BOTH:
+        self, sq: T_Multi, value: str, append: bool = False, as_dataclass: bool = AS_DATACLASS
+    ) -> T_ModelDict:
         """Update the description of a Saved Query.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             value (str): description to set
             append (bool, optional): append to pre-existing description
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         sq = self.get_by_multi(sq=sq, as_dataclass=True)
         value = f"{sq.description}{value}" if sq.description and append else value
         sq.set_description(value=value)
         return self._update_handler(sq=sq, as_dataclass=as_dataclass)
 
-    def update_page_size(self, sq: MULTI, value: int, as_dataclass: bool = AS_DATACLASS) -> BOTH:
+    def update_page_size(
+        self, sq: T_Multi, value: int, as_dataclass: bool = AS_DATACLASS
+    ) -> T_ModelDict:
         """Update the GUI page size of a Saved Query.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             value (int): page size to set
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         sq = self.get_by_multi(sq=sq, as_dataclass=True)
         sq.page_size = value
@@ -112,21 +117,21 @@ class SavedQuery(ChildMixins):
 
     def update_sort(
         self,
-        sq: MULTI,
+        sq: T_Multi,
         field: Optional[str] = None,
         descending: bool = True,
         as_dataclass: bool = AS_DATACLASS,
-    ) -> BOTH:
+    ) -> T_ModelDict:
         """Update the sort of a Saved Query.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             field (Optional[str], optional): field to sort results on
             descending (bool, optional): sort descending or ascending
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         sq = self.get_by_multi(sq=sq, as_dataclass=True)
 
@@ -141,23 +146,23 @@ class SavedQuery(ChildMixins):
 
     def update_tags(
         self,
-        sq: MULTI,
+        sq: T_Multi,
         value: Union[str, List[str]],
         remove: bool = False,
         append: bool = False,
         as_dataclass: bool = AS_DATACLASS,
-    ) -> BOTH:
+    ) -> T_ModelDict:
         """Update the tags of a Saved Query.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             value (Union[str, List[str]]): tags to set
             remove (bool, optional): remove tags in value from saved query tags
             append (bool, optional): append tags in value to pre-existing saved query tags
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         value = listify(value)
         if not all([isinstance(x, str) and x.strip() for x in value]):
@@ -174,38 +179,40 @@ class SavedQuery(ChildMixins):
         return self._update_handler(sq=sq, as_dataclass=as_dataclass)
 
     def update_always_cached(
-        self, sq: MULTI, value: bool, as_dataclass: bool = AS_DATACLASS
-    ) -> BOTH:
+        self, sq: T_Multi, value: bool, as_dataclass: bool = AS_DATACLASS
+    ) -> T_ModelDict:
         """Update the always_cached flag of a Saved Query.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             value (bool): should the saved query always being cached
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         return self._update_flag(
             attr="always_cached", sq=sq, value=value, as_dataclass=as_dataclass
         )
 
-    def update_private(self, sq: MULTI, value: bool, as_dataclass: bool = AS_DATACLASS) -> BOTH:
+    def update_private(
+        self, sq: T_Multi, value: bool, as_dataclass: bool = AS_DATACLASS
+    ) -> T_ModelDict:
         """Update the private flag of a Saved Query.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             value (bool): should the saved query be private
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         return self._update_flag(attr="private", sq=sq, value=value, as_dataclass=as_dataclass)
 
     def update_fields(
         self,
-        sq: MULTI,
+        sq: T_Multi,
         fields: Optional[Union[List[str], str]] = None,
         fields_manual: Optional[Union[List[str], str]] = None,
         fields_regex: Optional[Union[List[str], str]] = None,
@@ -216,11 +223,11 @@ class SavedQuery(ChildMixins):
         remove: bool = False,
         append: bool = False,
         as_dataclass: bool = AS_DATACLASS,
-    ) -> BOTH:
+    ) -> T_ModelDict:
         """Update the tags of a Saved Query.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             fields (Optional[Union[List[str], str]], optional): fields
             fields_manual (Optional[Union[List[str], str]], optional): fields fully qualified
             fields_regex (Optional[Union[List[str], str]], optional): fields via regex
@@ -233,7 +240,7 @@ class SavedQuery(ChildMixins):
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         sq = self.get_by_multi(sq=sq, as_dataclass=True)
 
@@ -257,7 +264,7 @@ class SavedQuery(ChildMixins):
 
     def update_query(
         self,
-        sq: MULTI,
+        sq: T_Multi,
         query: Optional[str] = None,
         expressions: Optional[List[str]] = None,
         wiz_entries: Optional[Union[str, List[dict]]] = None,
@@ -266,11 +273,11 @@ class SavedQuery(ChildMixins):
         append_not_flag: bool = False,
         as_dataclass: bool = AS_DATACLASS,
         **kwargs,
-    ) -> BOTH:
+    ) -> T_ModelDict:
         """Update the query of a Saved Query.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             query (Optional[str]], optional): previously generated query
             expressions (Optional[List[str]], optional): Expressions for GUI Query Wizard
             wiz_entries (Optional[Union[str, List[dict]]]): API query wizard entries to parse
@@ -281,7 +288,7 @@ class SavedQuery(ChildMixins):
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         sq = self.get_by_multi(sq=sq, as_dataclass=True)
 
@@ -335,24 +342,24 @@ class SavedQuery(ChildMixins):
 
     def copy(
         self,
-        sq: MULTI,
+        sq: T_Multi,
         name: str,
         private: bool = False,
         asset_scope: bool = False,
         always_cached: bool = False,
         as_dataclass: bool = AS_DATACLASS,
-    ) -> BOTH:
+    ) -> T_ModelDict:
         """Create a copy of a Saved Query.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             name (str): name to use for new sq
             private (bool, optional): Set new sq as private
             asset_scope (bool, optional): Set new sq as asset scope query
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         create_model = json_api.saved_queries.SavedQueryCreate
         self._check_name_exists(value=name)
@@ -367,17 +374,17 @@ class SavedQuery(ChildMixins):
         return self.get_by_multi(sq=added, as_dataclass=as_dataclass)
 
     def get_by_multi(
-        self, sq: MULTI, as_dataclass: bool = AS_DATACLASS, asset_scopes: bool = False, **kwargs
-    ) -> BOTH:
+        self, sq: T_Multi, as_dataclass: bool = AS_DATACLASS, asset_scopes: bool = False, **kwargs
+    ) -> T_ModelDict:
         """Get a saved query by name or uuid.
 
         Args:
-            sq (MULTI): str with name or uuid, or saved query dict or dataclass
+            sq (T_Multi): str with name or uuid, or saved query dict or dataclass
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
             **kwargs: passed to :meth:`get`
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
 
         Raises:
             ApiError: if sq is not a str, saved query dict, or saved query dataclass
@@ -389,11 +396,11 @@ class SavedQuery(ChildMixins):
         elif isinstance(sq, dict) and "uuid" in sq and "name" in sq:
             name = sq["name"]
             uuid = sq["uuid"]
-        elif isinstance(sq, MODEL):
+        elif isinstance(sq, T_Model):
             name = sq.name
             uuid = sq.uuid
         else:
-            raise ApiError(f"Unknown type {type(sq)}, must be a str, dict, or {MODEL}")
+            raise ApiError(f"Unknown type {type(sq)}, must be a str, dict, or {T_Model}")
 
         searches = [name, uuid]
         sq_objs = self.get(as_dataclass=True, **kwargs)
@@ -406,7 +413,7 @@ class SavedQuery(ChildMixins):
         for sq_obj in sq_objs:
             checks = (
                 [sq_obj.name, sq_obj.uuid]
-                if isinstance(sq_obj, MODEL)
+                if isinstance(sq_obj, T_Model)
                 else [sq_obj.get("name"), sq_obj.get("uuid")]
             )
             if any([x in checks for x in searches]):
@@ -414,7 +421,7 @@ class SavedQuery(ChildMixins):
 
         raise SavedQueryNotFoundError(sqs=sq_objs, details=details)
 
-    def get_by_name(self, value: str, as_dataclass: bool = AS_DATACLASS, **kwargs) -> BOTH:
+    def get_by_name(self, value: str, as_dataclass: bool = AS_DATACLASS, **kwargs) -> T_ModelDict:
         """Get a saved query by name.
 
         Examples:
@@ -448,7 +455,7 @@ class SavedQuery(ChildMixins):
             SavedQueryNotFoundError: if no saved query found with name of value
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
 
         """
         sqs = self.get(as_dataclass=True, **kwargs)
@@ -459,7 +466,7 @@ class SavedQuery(ChildMixins):
 
         raise SavedQueryNotFoundError(sqs=sqs, details=f"name={value!r}")
 
-    def get_by_uuid(self, value: str, as_dataclass: bool = AS_DATACLASS, **kwargs) -> BOTH:
+    def get_by_uuid(self, value: str, as_dataclass: bool = AS_DATACLASS, **kwargs) -> T_ModelDict:
         """Get a saved query by uuid.
 
         Examples:
@@ -475,7 +482,7 @@ class SavedQuery(ChildMixins):
             SavedQueryNotFoundError: if no saved query found with uuid of value
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         sqs = self.get(as_dataclass=True, **kwargs)
 
@@ -487,7 +494,7 @@ class SavedQuery(ChildMixins):
 
     def get_by_tags(
         self, value: Union[str, List[str]], as_dataclass: bool = AS_DATACLASS, **kwargs
-    ) -> List[BOTH]:
+    ) -> List[T_ModelDict]:
         """Get saved queries by tags.
 
         Examples:
@@ -511,7 +518,7 @@ class SavedQuery(ChildMixins):
             SavedQueryTagsNotFoundError: if no saved queries found with supplied tags
 
         Returns:
-            List[BOTH]: list of saved query dataclass or dict containing any tags in value
+            List[T_ModelDict]: list of saved query dataclass or dict containing any tags in value
         """
         value = listify(value)
         sqs = self.get(as_dataclass=True, **kwargs)
@@ -561,7 +568,9 @@ class SavedQuery(ChildMixins):
         """Get the valid values for the run_from attribute for getting query history."""
         return self._get_query_history_run_from().value
 
-    def get_query_history(self, generator: bool = False, **kwargs) -> Union[HIST_GEN, HIST_LIST]:
+    def get_query_history(
+        self, generator: bool = False, **kwargs
+    ) -> Union[T_History_Gen, T_History_List]:
         """Get query history.
 
         Args:
@@ -569,17 +578,17 @@ class SavedQuery(ChildMixins):
             **kwargs: passed to :meth:`get_fetch_history_generator`
 
         Returns:
-            Union[HIST_GEN, HIST_LIST]: Generator or list of query event models
+            Union[T_History_Gen, T_History_List]: Generator or list of query event models
         """
         gen = self.get_query_history_generator(**kwargs)
         return gen if generator else list(gen)
 
     def get_query_history_generator(
         self,
-        run_by: OPT_STR_RE_LISTY = None,
-        run_from: OPT_STR_RE_LISTY = None,
-        tags: OPT_STR_RE_LISTY = None,
-        modules: OPT_STR_RE_LISTY = None,
+        run_by: Optional[T_CoerceReListy] = None,
+        run_from: Optional[T_CoerceReListy] = None,
+        tags: Optional[T_CoerceReListy] = None,
+        modules: Optional[T_CoerceReListy] = None,
         name_term: Optional[str] = None,
         date_start: Optional[datetime.datetime] = None,
         date_end: Optional[datetime.datetime] = None,
@@ -595,14 +604,14 @@ class SavedQuery(ChildMixins):
         run_by_values: Optional[List[str]] = None,
         run_from_values: Optional[List[str]] = None,
         request_obj: Optional[QueryHistoryRequest] = None,
-    ) -> HIST_LIST:
+    ) -> T_History_List:
         """Get query history.
 
         Args:
-            run_by (OPT_STR_RE_LISTY, optional): Filter records run by users
-            run_from (OPT_STR_RE_LISTY, optional): Filter records run from api/gui
-            tags (OPT_STR_RE_LISTY, optional): Filter records by SQ tags
-            modules (OPT_STR_RE_LISTY, optional): Filter records by asset type
+            run_by (Optional[T_CoerceReListy], optional): Filter records run by users
+            run_from (Optional[T_CoerceReListy], optional): Filter records run from api/gui
+            tags (Optional[T_CoerceReListy], optional): Filter records by SQ tags
+            modules (Optional[T_CoerceReListy], optional): Filter records by asset type
                 (defaults to parent asset type)
             name_term (Optional[str], optional): Filter records by SQ name pattern
             date_start (Optional[datetime.datetime], optional): Filter records after this date
@@ -676,7 +685,7 @@ class SavedQuery(ChildMixins):
                 page = state.page(method=self._get_query_history, request_obj=request_obj)
                 yield from page.rows
 
-    def get(self, generator: bool = False, **kwargs) -> Union[GEN, List[BOTH]]:
+    def get(self, generator: bool = False, **kwargs) -> Union[T_Gen, List[T_ModelDict]]:
         """Get all saved queries.
 
         Examples:
@@ -690,10 +699,10 @@ class SavedQuery(ChildMixins):
             generator: return an iterator
 
         Yields:
-            GEN: if generator = True, saved query dataclass or dict
+            T_Gen: if generator = True, saved query dataclass or dict
 
         Returns:
-            List[BOTH]: if generator = False, list of saved query dataclass or dict
+            List[T_ModelDict]: if generator = False, list of saved query dataclass or dict
 
         """
         if "sqs" in kwargs:
@@ -719,16 +728,16 @@ class SavedQuery(ChildMixins):
         row_start: int = 0,
         row_stop: Optional[int] = None,
         log_level: Union[int, str] = LOG_LEVEL_API,
-    ) -> GEN:
+    ) -> T_Gen:
         """Get Saved Queries using a generator.
 
         Args:
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Yields:
-            GEN: saved query dataclass or dict
+            T_Gen: saved query dataclass or dict
         """
-        request_obj = MODEL_GET(
+        request_obj = T_Request(
             # filter=filter,
             # search=search,
             # TBD: LATER
@@ -757,7 +766,7 @@ class SavedQuery(ChildMixins):
                 for row in page.rows:
                     yield row if as_dataclass else row.to_dict()
 
-    def add(self, as_dataclass: bool = AS_DATACLASS, **kwargs) -> BOTH:
+    def add(self, as_dataclass: bool = AS_DATACLASS, **kwargs) -> T_ModelDict:
         """Create a saved query.
 
         Examples:
@@ -784,7 +793,7 @@ class SavedQuery(ChildMixins):
             **kwargs: passed to :meth:`build_add_model`
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
 
         """
         create_obj = self.build_add_model(**kwargs)
@@ -926,7 +935,7 @@ class SavedQuery(ChildMixins):
             # folder_id=folder_id,
         )
 
-    def delete_by_name(self, value: str, as_dataclass: bool = AS_DATACLASS) -> BOTH:
+    def delete_by_name(self, value: str, as_dataclass: bool = AS_DATACLASS) -> T_ModelDict:
         """Delete a saved query by name.
 
         Examples:
@@ -939,7 +948,7 @@ class SavedQuery(ChildMixins):
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         sq = self.get_by_name(value=value, as_dataclass=True)
         self._delete(uuid=sq.uuid)
@@ -947,16 +956,16 @@ class SavedQuery(ChildMixins):
 
     def delete(
         self,
-        rows: Union[List[MULTI], MULTI],
+        rows: Union[List[T_Multi], T_Multi],
         errors: bool = True,
         refetch: bool = True,
         as_dataclass: bool = AS_DATACLASS,
         **kwargs,
-    ) -> List[BOTH]:
+    ) -> List[T_ModelDict]:
         """Delete saved queries.
 
         Args:
-            rows (Union[List[MULTI], MULTI]): str or list of str with name, str or list of str
+            rows (Union[List[T_Multi], T_Multi]): str or list of str with name, str or list of str
                 with uuid, saved query dict or list of dict, or saved query dataclass or list
                 of dataclass
             errors (bool, optional): Raise errors if SQ not found or other error
@@ -964,7 +973,7 @@ class SavedQuery(ChildMixins):
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            List[BOTH]: list of saved query dataclass or dict that were deleted
+            List[T_ModelDict]: list of saved query dataclass or dict that were deleted
 
         """
         do_echo = kwargs.get("do_echo", False)
@@ -973,7 +982,7 @@ class SavedQuery(ChildMixins):
         for row in listify(rows):
             try:
                 sq = row
-                if not isinstance(row, MODEL) or refetch:
+                if not isinstance(row, T_Model) or refetch:
                     sq = self.get_by_multi(sq=row, as_dataclass=True, sqs=sqs)
 
                 if sq not in deleted:
@@ -992,33 +1001,33 @@ class SavedQuery(ChildMixins):
         return deleted if as_dataclass else [x.to_dict() for x in deleted]
 
     def _update_flag(
-        self, attr: str, sq: MULTI, value: bool, as_dataclass: bool = AS_DATACLASS
-    ) -> BOTH:
+        self, attr: str, sq: T_Multi, value: bool, as_dataclass: bool = AS_DATACLASS
+    ) -> T_ModelDict:
         """Update a boolean flag for a SQ.
 
         Args:
             attr (str): attribute name
-            sq (MULTI): saved query to update
+            sq (T_Multi): saved query to update
             value (bool): value to set to attr
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         sq = self.get_by_multi(sq=sq, as_dataclass=True)
         value = coerce_bool(obj=value, errmsg=f"{attr} requires a valid boolean")
         setattr(sq, attr, value)
         return self._update_handler(sq=sq, as_dataclass=as_dataclass)
 
-    def _update_handler(self, sq: MODEL, as_dataclass: bool = AS_DATACLASS) -> BOTH:
+    def _update_handler(self, sq: T_Model, as_dataclass: bool = AS_DATACLASS) -> T_ModelDict:
         """Update a SQ.
 
         Args:
-            sq (MULTI): saved query to update
+            sq (T_Multi): saved query to update
             as_dataclass (bool, optional): Return saved query dataclass instead of dict
 
         Returns:
-            BOTH: saved query dataclass or dict
+            T_ModelDict: saved query dataclass or dict
         """
         ret = self._update(
             uuid=sq.uuid,
@@ -1034,14 +1043,14 @@ class SavedQuery(ChildMixins):
 
     def _update_from_dataclass(
         self, obj: json_api.saved_queries.SavedQueryCreate, uuid: str
-    ) -> MODEL:
+    ) -> T_Model:
         """Direct API method to update a saved query.
 
         Args:
             obj (json_api.saved_queries.SavedQueryCreate): pre-created dataclass
 
         Returns:
-            MODEL: saved query dataclass
+            T_Model: saved query dataclass
         """
         return self._update(
             uuid=uuid,
@@ -1060,7 +1069,7 @@ class SavedQuery(ChildMixins):
         asset_scope: bool = False,
         # WIP: folders
         # folder_id: Optional[str] = None,
-    ) -> MODEL:
+    ) -> T_Model:
         """Direct API method to update a saved query.
 
         Args:
@@ -1074,7 +1083,7 @@ class SavedQuery(ChildMixins):
             asset_scope (bool, optional): set sq as asset scope query
 
         Returns:
-            MODEL: saved query dataclass
+            T_Model: saved query dataclass
         """
         api_endpoint = ApiEndpoints.saved_queries.update
         request_obj = api_endpoint.load_request(
@@ -1095,14 +1104,14 @@ class SavedQuery(ChildMixins):
             uuid=uuid,
         )
 
-    def _add_from_dataclass(self, obj: json_api.saved_queries.SavedQueryCreate) -> MODEL:
+    def _add_from_dataclass(self, obj: json_api.saved_queries.SavedQueryCreate) -> T_Model:
         """Direct API method to create a saved query.
 
         Args:
             obj (json_api.saved_queries.SavedQueryCreate): pre-created dataclass
 
         Returns:
-            MODEL: saved query dataclass
+            T_Model: saved query dataclass
         """
         return self._add(**obj.get_attrs())
 
@@ -1117,7 +1126,7 @@ class SavedQuery(ChildMixins):
         asset_scope: bool = False,
         # WIP: folders
         # folder_id: Optional[str] = None,
-    ) -> MODEL:
+    ) -> T_Model:
         """Direct API method to create a saved query.
 
         Args:
@@ -1131,7 +1140,7 @@ class SavedQuery(ChildMixins):
             asset_scope (bool, optional): set sq as asset scope query
 
         Returns:
-            MODEL: saved query dataclass
+            T_Model: saved query dataclass
         """
         api_endpoint = ApiEndpoints.saved_queries.create
         request_obj = api_endpoint.load_request(
@@ -1179,7 +1188,7 @@ class SavedQuery(ChildMixins):
         used_in: Optional[List[str]] = None,
         get_view_data: bool = True,
         include_usage: bool = False,
-    ) -> List[MODEL]:
+    ) -> List[T_Model]:
         """Direct API method to get all saved queries.
 
         Args:
@@ -1187,7 +1196,7 @@ class SavedQuery(ChildMixins):
             offset (int, optional): start at row N
 
         Returns:
-            List[MODEL]: list of saved query dataclass
+            List[T_Model]: list of saved query dataclass
         """
         api_endpoint = ApiEndpoints.saved_queries.get
         request_obj = api_endpoint.load_request(
@@ -1203,7 +1212,7 @@ class SavedQuery(ChildMixins):
         )
         return self._get_model(request_obj=request_obj)
 
-    def _get_model(self, request_obj: MODEL_GET) -> List[MODEL]:
+    def _get_model(self, request_obj: T_Request) -> List[T_Model]:
         """Direct API method to get all saved queries."""
         api_endpoint = ApiEndpoints.saved_queries.get
         return api_endpoint.perform_request(
@@ -1225,7 +1234,9 @@ class SavedQuery(ChildMixins):
         except SavedQueryNotFoundError:
             return
 
-    def _get_query_history(self, request_obj: Optional[QueryHistoryRequest] = None) -> HIST_LIST:
+    def _get_query_history(
+        self, request_obj: Optional[QueryHistoryRequest] = None
+    ) -> T_History_List:
         """Pass."""
         api_endpoint = ApiEndpoints.saved_queries.get_query_history
         if not request_obj:
@@ -1266,9 +1277,9 @@ class SavedQuery(ChildMixins):
         """
         return self._get_folders()
 
-    def folder_get_path(self, value: Union[MODEL_FOLDER, str, List[str]]) -> MODEL_FOLDER:
+    def folder_get_path(self, value: Union[T_Folder, str, List[str]]) -> T_Folder:
         """Pass."""
-        if isinstance(value, MODEL_FOLDER):
+        if isinstance(value, T_Folder):
             return value
         folders = self.folder_get()
         return folders.search(value=value)
