@@ -21,13 +21,13 @@ class GrpSavedQueryCmdCopy:
                 sq_get.name,
                 "--name",
                 name,
-                "--private",
+                "--always-cached",
                 "--export-format",
                 "json",
             ]
             result = runner.invoke(cli=cli, args=args)
             data = self.check_result(result=result)
-            assert data["private"] is True
+            assert data["always_cached"] is True
             self._cleanup(apiobj=apiobj, value=name)
 
     def test_failure_name_exists(self, apiobj, request, monkeypatch, sq_get):

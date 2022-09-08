@@ -5,7 +5,6 @@ import pathlib
 import time
 
 import pytest
-
 from axonius_api_client.constants.logs import (
     LOG_LEVEL_CONSOLE,
     LOG_LEVEL_FILE,
@@ -15,7 +14,7 @@ from axonius_api_client.constants.logs import (
 )
 from axonius_api_client.exceptions import ToolsError
 from axonius_api_client.logs import (
-    LOG,
+    PACKAGE_LOG,
     add_file,
     add_null,
     add_stderr,
@@ -81,66 +80,66 @@ class TestLogs:
         assert obj.level == logging.INFO
 
     def test_add_del_stderr(self):
-        h = add_stderr(obj=LOG)
+        h = add_stderr(obj=PACKAGE_LOG)
         assert h.name == LOG_NAME_STDERR
         assert str_level(level=h.level).lower() == LOG_LEVEL_CONSOLE
         assert isinstance(h, logging.StreamHandler)
-        assert h in LOG.handlers
+        assert h in PACKAGE_LOG.handlers
 
-        dh = del_stderr(obj=LOG)
+        dh = del_stderr(obj=PACKAGE_LOG)
         assert isinstance(dh, dict)
-        assert LOG.name in dh
-        assert isinstance(dh[LOG.name], list)
-        assert h in dh[LOG.name]
-        assert h not in LOG.handlers
+        assert PACKAGE_LOG.name in dh
+        assert isinstance(dh[PACKAGE_LOG.name], list)
+        assert h in dh[PACKAGE_LOG.name]
+        assert h not in PACKAGE_LOG.handlers
 
     def test_add_del_stdout(self):
-        h = add_stdout(obj=LOG)
+        h = add_stdout(obj=PACKAGE_LOG)
         assert h.name == LOG_NAME_STDOUT
         assert str_level(level=h.level).lower() == LOG_LEVEL_CONSOLE
         assert isinstance(h, logging.StreamHandler)
-        assert h in LOG.handlers
+        assert h in PACKAGE_LOG.handlers
 
-        dh = del_stdout(obj=LOG)
+        dh = del_stdout(obj=PACKAGE_LOG)
         assert isinstance(dh, dict)
-        assert LOG.name in dh
-        assert isinstance(dh[LOG.name], list)
-        assert h in dh[LOG.name]
-        assert h not in LOG.handlers
+        assert PACKAGE_LOG.name in dh
+        assert isinstance(dh[PACKAGE_LOG.name], list)
+        assert h in dh[PACKAGE_LOG.name]
+        assert h not in PACKAGE_LOG.handlers
 
     def test_add_del_null(self):
-        del_null(obj=LOG)
-        h = add_null(obj=LOG)
+        del_null(obj=PACKAGE_LOG)
+        h = add_null(obj=PACKAGE_LOG)
         assert h.name == "NULL"
         assert isinstance(h, logging.NullHandler)
-        assert h in LOG.handlers
+        assert h in PACKAGE_LOG.handlers
 
-        fh = add_null(obj=LOG)
+        fh = add_null(obj=PACKAGE_LOG)
         assert fh is None
 
-        dh = del_null(obj=LOG)
+        dh = del_null(obj=PACKAGE_LOG)
 
         assert isinstance(dh, dict)
-        assert isinstance(dh[LOG.name], list)
+        assert isinstance(dh[PACKAGE_LOG.name], list)
 
-        assert LOG.name in dh
-        f = dh.pop(LOG.name)
+        assert PACKAGE_LOG.name in dh
+        f = dh.pop(PACKAGE_LOG.name)
 
         assert h in f
-        assert h not in LOG.handlers
+        assert h not in PACKAGE_LOG.handlers
 
     def test_add_del_file(self):
-        h = add_file(obj=LOG)
+        h = add_file(obj=PACKAGE_LOG)
         assert h.name == LOG_NAME_FILE
         assert str_level(level=h.level).lower() == LOG_LEVEL_FILE
         assert isinstance(h, logging.handlers.RotatingFileHandler)
-        assert h in LOG.handlers
+        assert h in PACKAGE_LOG.handlers
         assert getattr(h, "PATH", None)
         assert isinstance(h.PATH, pathlib.Path)
 
-        dh = del_file(LOG)
+        dh = del_file(PACKAGE_LOG)
         assert isinstance(dh, dict)
-        assert LOG.name in dh
-        assert isinstance(dh[LOG.name], list)
-        assert h in dh[LOG.name]
-        assert h not in LOG.handlers
+        assert PACKAGE_LOG.name in dh
+        assert isinstance(dh[PACKAGE_LOG.name], list)
+        assert h in dh[PACKAGE_LOG.name]
+        assert h not in PACKAGE_LOG.handlers

@@ -8,7 +8,7 @@ import re
 import pytest
 from axonius_api_client.api import json_api
 from axonius_api_client.constants.api import GUI_PAGE_SIZES
-from axonius_api_client.constants.general import SIMPLE
+from axonius_api_client.constants.typer import T_Simples
 from axonius_api_client.exceptions import (
     AlreadyExists,
     ApiAttributeTypeError,
@@ -544,10 +544,14 @@ class TestSavedQueryPublic(SavedQueryBase):
         add = random_string(6)
         new_value = f"{FixtureData.name} {add}"
         updated = apiobj.saved_query.copy(
-            sq=FixtureData.name, name=new_value, private=True, asset_scope=False, as_dataclass=True
+            sq=FixtureData.name,
+            name=new_value,
+            always_cached=True,
+            asset_scope=False,
+            as_dataclass=True,
         )
         assert updated.name == new_value
-        assert updated.private is True
+        assert updated.always_cached is True
         apiobj.saved_query.delete_by_name(value=updated.name)
 
     def test_get_by_multi_not_found(self, apiobj, sq_fixture):
@@ -781,7 +785,7 @@ def validate_qexpr(qexpr, asset):
     assert isinstance(notflag, bool)
 
     value = qexpr.pop("value")
-    assert isinstance(value, SIMPLE) or value is None
+    assert isinstance(value, T_Simples) or value is None
 
     obj = qexpr.pop("obj", False)
     assert isinstance(obj, bool)
@@ -1010,9 +1014,10 @@ def validate_sq(asset):
     ]
     """
     colfilters = view.pop("colFilters", [])
-    assert isinstance(colfilters, list)
-    for colfilter in colfilters:
-        assert isinstance(colfilter, dict)
+    assert isinstance(colfilters, list) or colfilters is None
+    if isinstance(colfilters, list):
+        for colfilter in colfilters:
+            assert isinstance(colfilter, dict)
 
     qfilter = query.pop("filter")
     assert isinstance(qfilter, str) or qfilter is None
@@ -1030,7 +1035,7 @@ def validate_sq(asset):
     assert qsearch is None or isinstance(qsearch, str)
 
     historical = view.pop("historical", None)
-    assert historical is None or isinstance(historical, SIMPLE)
+    assert historical is None or isinstance(historical, T_Simples)
 
     """ changed in 4.5
     # 3.6+
@@ -1042,9 +1047,10 @@ def validate_sq(asset):
     [{"exclude": ["chef_adapter"], "fieldPath": "specific_data.data.name"}]
     """
     excluded_adapters = view.pop("colExcludedAdapters", [])
-    assert isinstance(excluded_adapters, list)
-    for excluded_adapter in excluded_adapters:
-        assert isinstance(excluded_adapter, dict)
+    assert isinstance(excluded_adapters, list) or excluded_adapters is None
+    if isinstance(excluded_adapters, list):
+        for excluded_adapter in excluded_adapters:
+            assert isinstance(excluded_adapter, dict)
 
     # 4.0
     always_cached = asset.pop("always_cached")

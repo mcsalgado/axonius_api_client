@@ -214,8 +214,7 @@ class TestAssetsPrivate(ModelMixinsBase):
         assert len(data.assets) == 1
 
     def test_get_by_id_dc(self, apiobj):
-        data = apiobj._get(limit=1)
-        id = data.assets[0]["internal_axon_id"]
+        id = apiobj.ORIGINAL_ROWS[0]["internal_axon_id"]
         data = apiobj._get_by_id(id=id)
         assert isinstance(data, json_api.assets.AssetById)
         assert data.id == id
@@ -311,16 +310,16 @@ class TestAssetsPublic(ModelMixinsBase):
         check_assets(rows)
         assert len(rows) == 1
 
-    def test_get_no_dups(self, apiobj):
-        rows = apiobj.get(generator=True)
-        ids = {}
-        for idx, row in enumerate(rows):
-            id = row["internal_axon_id"]
-            if id in ids:
-                raise Exception(f"Duplicate id {id} at row {idx}")
+    # def test_get_no_dups(self, apiobj):
+    #     rows = apiobj.get(generator=True)
+    #     ids = {}
+    #     for idx, row in enumerate(rows):
+    #         id = row["internal_axon_id"]
+    #         if id in ids:
+    #             raise Exception(f"Duplicate id {id} at row {idx}")
 
     def test_get_agg_raw_data(self, apiobj):
-        rows = apiobj.get(fields=["agg:raw_data"])
+        rows = apiobj.get(fields=["agg:raw_data"], max_rows=1)
         for row in rows:
             self.validate_raw_data(apiobj=apiobj, row=row, field="specific_data.data.raw_data")
 
@@ -338,7 +337,9 @@ class TestAssetsPublic(ModelMixinsBase):
 
     def test_get_adapter_raw_data(self, apiobj):
         rows = apiobj.get(
-            fields=["active_directory:raw_data"], wiz_entries="simple active_directory:id exists"
+            fields=["active_directory:raw_data"],
+            wiz_entries="simple active_directory:id exists",
+            max_rows=1,
         )
         for row in rows:
             self.validate_raw_data(
@@ -351,13 +352,13 @@ class TestAssetsPublic(ModelMixinsBase):
         assert len(rows) <= MAX_PAGE_SIZE
 
     def test_get_maxpages(self, apiobj):
-        rows = apiobj.get(page_size=20, max_pages=1)
+        rows = apiobj.get(page_size=2, max_pages=1)
         check_assets(rows)
-        assert len(rows) == 20
+        assert len(rows) == 2
 
     @flaky(max_runs=3)
     def test_get_all_agg(self, apiobj):
-        rows = apiobj.get(fields="agg:all", max_rows=5)
+        rows = apiobj.get(fields="agg:all", max_rows=1)
         for row in rows:
             assert "specific_data" in row
             all_datas = row["specific_data"]
@@ -377,7 +378,7 @@ class TestAssetsPublic(ModelMixinsBase):
         rows = apiobj.get(
             fields="active_directory:all",
             wiz_entries="simple active_directory:id exists",
-            max_rows=5,
+            max_rows=1,
         )
         for row in rows:
             assert "adapters_data.active_directory_adapter" in row
@@ -391,8 +392,7 @@ class TestAssetsPublic(ModelMixinsBase):
                 )
 
     def test_get_id(self, apiobj):
-        asset = apiobj.get(max_rows=1)[0]
-        id = asset["internal_axon_id"]
+        id = apiobj.ORIGINAL_ROWS[0]["internal_axon_id"]
 
         row = apiobj.get_by_id(id=id)
         check_asset(row)
