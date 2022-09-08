@@ -65,10 +65,18 @@ Tips:
 @click.option(
     "--header",
     "headers",
-    default=[],
     help="Additional headers to use in all requests in the format of key=value (multiples)",
-    show_envvar=True,
-    show_default=True,
+    allow_from_autoenv=False,
+    show_default=False,
+    multiple=True,
+    type=context.SplitEquals(),
+)
+@click.option(
+    "--cookie",
+    "cookies",
+    help="Additional cookies to use in all requests in the format of key=value (multiples)",
+    allow_from_autoenv=False,
+    show_default=False,
     multiple=True,
     type=context.SplitEquals(),
 )
