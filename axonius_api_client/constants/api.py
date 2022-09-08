@@ -53,3 +53,5 @@ COUNT_POLLING_SLEEP: int = 1
 
 AS_DATACLASS: bool = False
 """Global default for returning objects as dataclass instead of dict."""
+
+AXID: str = "internal_axon_id"

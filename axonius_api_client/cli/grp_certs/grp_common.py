@@ -4,7 +4,7 @@ import click
 
 from ... import INIT_DOTENV, cert_human
 from ...parsers.url_parser import UrlParser
-from ...setup_env import KEY_CERTPATH, set_env
+from ...setup_env import KEYS, set_env
 from ...tools import echo_ok, echo_warn, get_path, json_dump, path_write
 
 
@@ -192,7 +192,7 @@ OPT_UPDATE_ENV = click.option(
     "-ue/-nue",
     "update_env",
     default=False,
-    help=f"Add '{KEY_CERTPATH}={{path_to_leaf_cert}}' to {INIT_DOTENV!r}",
+    help=f"Add '{KEYS.CERTPATH}={{path_to_leaf_cert}}' to {INIT_DOTENV!r}",
     is_flag=True,
     show_envvar=True,
     show_default=True,
@@ -349,10 +349,10 @@ def confirm_abort(prompt, text, default=False, fg="red", fg_false="blue"):
 
 def handle_update_env(update_env, export_file):
     """Pass."""
-    entry = f'{KEY_CERTPATH}="{export_file}"'
+    entry = f'{KEYS.CERTPATH}="{export_file}"'
     uenv = f"update_env={update_env}"
     if update_env:
-        set_env(key=KEY_CERTPATH, value=export_file)
+        set_env(key=KEYS.CERTPATH, value=export_file)
         click.secho(
             message=f"{uenv} Updated {INIT_DOTENV!r} with:\n{entry}",
             err=True,
