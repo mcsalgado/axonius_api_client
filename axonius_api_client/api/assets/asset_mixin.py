@@ -677,6 +677,15 @@ class AssetMixin(ModelMixins):
             self._data_scopes: DataScopes = DataScopes(auth=self.auth)
         return self._data_scopes
 
+    @property
+    def enforcements(self):
+        """Work with data scopes."""
+        if not hasattr(self, "_enforcements"):
+            from ..enforcements import Enforcements
+
+            self._enforcements: Enforcements = Enforcements(auth=self.auth)
+        return self._enforcements
+
     def _init(self, **kwargs):
         """Post init method for subclasses to use for extra setup."""
         from ..adapters import Adapters
@@ -852,6 +861,106 @@ class AssetMixin(ModelMixins):
         """Private API method to get all known historical dates."""
         api_endpoint = ApiEndpoints.assets.history_dates
         return api_endpoint.perform_request(http=self.auth.http)
+
+    def _enforce(
+        self,
+        name: str,
+        ids: List[str],
+        include: bool = True,
+        fields: Optional[List[str]] = None,
+        query: Optional[str] = "",
+    ) -> None:
+        """Run an enforcement set manually against a list of assets internal_axon_ids.
+
+        Args:
+            name (str): Name of enforcement set to exectue
+            ids (List[str]): internal_axon_id's of assets to run enforcement set against
+            include (bool, optional): select IDs in DB or IDs NOT in DB
+            fields (Optional[List[str]], optional): list of fields used to select assets
+            query (str, optional): filter used to select assets
+
+        Returns:
+            TYPE: Empty response
+        """
+        fields = listify(fields)
+        ids = listify(ids)
+        query = query if isinstance(query, str) and query.strip() else ""
+
+        asset_type = self.ASSET_TYPE
+        selection = {"ids": ids, "include": include}
+
+        view_sort = {"field": "", "desc": True}
+        view_colfilters = []
+        view = {"fields": fields, "sort": view_sort, "colFilters": view_colfilters}
+        # view does not seem to be really used in back end, but front end sends it
+        # duplicating the front end concept for now
+
+        api_endpoint = ApiEndpoints.assets.enforce
+        request_obj = api_endpoint.load_request(
+            name=name, selection=selection, view=view, filter=query
+        )
+
+        return api_endpoint.perform_request(
+            http=self.auth.http, request_obj=request_obj, asset_type=asset_type
+        )
+
+    def enforce(
+        self,
+        value: T_Multi,
+        ids: List[str],
+        verify: bool = True,
+        refetch: bool = False,
+        fields: Optional[List[str]] = None,
+        query: Optional[str] = None,
+    ) -> T_Full:
+        """Run an enforcement set manually against a list of assets ids.
+
+        Args:
+            value (T_Multi): enforcement set model or str with name or uuid
+            ids (List[str]): internal_axon_id's of assets to run enforcement against
+            verify (bool, optional): Verify the count of assets that match supplied IDs equals
+                the number of supplied IDs
+            refetch (bool, optional): refetch enforcement if it is already a full model
+            fields (Optional[List[str]], optional): list of fields used to select assets
+            query (Optional[str], optional): filter used to select assets
+
+        """
+        fields = check_is_strs(values=fields, src="fields", not_empty_list=False)
+        ids = check_is_strs(values=ids, src="ids", not_empty_list=True)
+        if verify:
+            ids_csv = ",".join(ids)
+            content = f"simple internal_axon_id in {ids_csv}"
+            parsed = self.wizard_text.parse(content=content)
+            query = parsed["query"]
+            count = self.count(query=query)
+            if count != len(ids):
+                msg = (
+                    "Failed asset ID verification! "
+                    f"Found {count} assets matching {len(ids)} supplied asset IDs"
+                )
+                raise ApiError(msg)
+
+        value = self.enforcements.get_set(value=value, refetch=refetch)
+        result = self._enforce(name=value.name, ids=ids, fields=fields, filter=query)
+        self.LOG.info(f"Ran enforcement set against IDs: {ids}\nResult: {result}\n{value}")
+        return value
+
+    def enforce_dicts(
+        self, data: List[dict], key: str = AXID, error: bool = True, **kwargs
+    ) -> T_Full:
+        """Run an enforcement set manually against a list of dictionaries.
+
+        This will take the value of 'key' from each dict and treat pass it as the asset ID's
+        to execute using :meth:`enforce`.
+
+        Args:
+            data (List[dict]): dictionaries to get key value from
+            key (str, optional): key to get asset ID value from each dictionary in data
+            error (bool, optional): throw errors if an asset parse fails
+            **kwargs: passed to :meth:`enforce`.
+
+        """
+        pass
 
     FIELD_TAGS: str = "labels"
     """Field name for getting tabs (labels)."""
