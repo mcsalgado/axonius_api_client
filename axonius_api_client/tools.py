@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Utilities and tools."""
-import calendar
 import codecs
 import csv
 import inspect
@@ -10,23 +9,11 @@ import json
 import logging
 import pathlib
 import platform
-import re
 import sys
 from datetime import datetime, timedelta, timezone
 from itertools import zip_longest
-from typing import (
-    Any,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
-    Pattern,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
+from types import GeneratorType
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Type, Union
 from urllib.parse import urljoin
 
 import click
@@ -37,12 +24,15 @@ import dateutil.tz
 from . import INIT_DOTENV, PACKAGE_FILE, PACKAGE_ROOT, VERSION
 from .constants.api import GUI_PAGE_SIZES
 from .constants.general import (
+    DAYS_MAP,
     DEBUG_ARGS,
     DEBUG_TMPL,
+    EMAIL_RE,
     ERROR_ARGS,
     ERROR_TMPL,
     FILE_DATE_FMT,
     NO,
+    NONE_STRS,
     OK_ARGS,
     OK_TMPL,
     TRIM_MSG,
@@ -51,35 +41,43 @@ from .constants.general import (
     WARN_TMPL,
     YES,
 )
-from .constants.logs import MAX_BODY_LEN
+from .constants.typer import T_Pathy
 from .exceptions import ToolsError
 from .setup_env import find_dotenv, get_env_ax
 
 LOG: logging.Logger = logging.getLogger(PACKAGE_ROOT).getChild("tools")
-EMAIL_RE_STR: str = (
-    r"([-!#-'*+/-9=?A-Z^-~]+(\.[-!#-'*+/-9=?A-Z^-~]+)*|\"([]!#-[^-~ \t]|(\\[\t -~]))+\")"
-    r"@([-!#-'*+/-9=?A-Z^-~]+(\.[-!#-'*+/-9=?A-Z^-~]+)*|\[[\t -Z^-~]*])"
-)
-EMAIL_RE: Pattern = re.compile(EMAIL_RE_STR, re.I)
-PathLike: TypeVar = TypeVar("PathLike", pathlib.Path, str, bytes)
-DAYS_MAP: dict = dict(zip(range(7), calendar.day_name))
 
 
-def listify(obj: Any, dictkeys: bool = False) -> list:
+def path_repr(self):
+    """Pass."""
+    return f"{self.__str__()!r}"
+
+
+pathlib.Path.__repr__ = path_repr
+
+
+def listify(obj: Any, dictkeys: bool = False, consume: bool = False) -> list:
     """Force an object into a list.
 
     Notes:
         * :obj:`list`: returns as is
-        * :obj:`tuple`: convert to list
+        * :obj:`tuple`: returns as list
         * :obj:`None`: returns as an empty list
-        * any of :data:`axonius_api_client.constants.general.SIMPLE`: return as a list of obj
-        * :obj:`dict`: if dictkeys is True, return as list of keys of obj,
-          otherwise return as a list of obj
+        * :obj:`dict`: return as list of keys of obj if dictkeys is True, list with obj
+            if False
+        * generator: returns list if consume is True, generator if False
+        * any thing else: returns as a list with obj as one item
 
     Args:
         obj: object to coerce to list
         dictkeys: if obj is dict, return list of keys of obj
+        consume: if obj is generator, consume it
     """
+    if isinstance(obj, GeneratorType):
+        if consume:
+            return list(obj)
+        return obj
+
     if isinstance(obj, list):
         return obj
 
@@ -106,74 +104,156 @@ def grouper(iterable: Iterable, n: int, fillvalue: Optional[Any] = None) -> Iter
     return zip_longest(*([iter(iterable)] * n), fillvalue=fillvalue)
 
 
-def coerce_int(
-    obj: Any,
+def check_min_max_valid(
+    value: Union[int, float, str],
     max_value: Optional[int] = None,
     min_value: Optional[int] = None,
+    valid_values: Optional[List[int]] = None,
+):
+    """Pass."""
+    errs = []
+    if isinstance(value, (int, float)):
+        if isinstance(max_value, (int, float)) and value > max_value:
+            errs.append(f"Supplied value {value!r} is greater than max value of {max_value!r}.")
+
+        if isinstance(min_value, (int, float)) and value < min_value:
+            errs.append(f"Supplied value {value!r} is less than min value of {min_value!r}.")
+
+    if isinstance(valid_values, (list, tuple)) and valid_values and value not in valid_values:
+        errs.append(
+            f"Supplied value {value!r} is not a valid value, valid values: {valid_values!r}."
+        )
+    return errs
+
+
+def coerce_int(
+    obj: Any,
+    max_value: Optional[Union[int, float]] = None,
+    min_value: Optional[Union[int, float]] = None,
     allow_none: bool = False,
+    allow_none_strs: bool = False,
+    none_strs: List[str] = NONE_STRS,
     valid_values: Optional[List[int]] = None,
     errmsg: Optional[str] = None,
-) -> int:
+    src_obj: Optional[object] = None,
+    src_arg: Optional[str] = None,
+) -> Optional[int]:
     """Convert an object into int.
 
     Args:
         obj: object to convert to int
+        max_value: throw error if value is over this
+        min_value: throw error if value is under this
+        allow_none: if str of value lowered and stripped matches one of none_strs
+        valid_values: throw error if value is not one of these values
+        errmsg: optional error msg to show first
+        src_obj: optional object using this tool
+        src_arg: optional property using this tool
 
     Raises:
         :exc:`ToolsError`: if obj is not able to be converted to int
     """
-    if allow_none and (obj is None or str(obj).lower().strip() in ["none", "null"]):
+    if (allow_none and obj is None) or (
+        allow_none_strs and str(obj).lower().strip() in listify(none_strs)
+    ):
         return None
 
-    pre = f"{errmsg}\n" if errmsg else ""
-    vtype = type(obj).__name__
+    errs = []
 
     try:
-        value = int(obj)
+        obj = int(obj)
     except Exception:
-        raise ToolsError(f"{pre}Supplied value {obj!r} of type {vtype} is not an integer.")
+        vtype = type(obj).__name__
+        errs.append(f"Supplied value {obj!r} of type {vtype} is not an integer.")
+    else:
+        errs += check_min_max_valid(
+            value=obj, min_value=min_value, max_value=max_value, valid_values=valid_values
+        )
 
-    if max_value is not None and value > max_value:
-        raise ToolsError(f"{pre}Supplied value {obj!r} is greater than max value of {max_value}.")
-
-    if min_value is not None and value < min_value:
-        raise ToolsError(f"{pre}Supplied value {obj!r} is less than min value of {min_value}.")
-
-    if valid_values and value not in valid_values:
-        raise ToolsError(f"{pre}Supplied value {obj!r} is not one of {valid_values}.")
-
-    return value
+    if errs:
+        raise ToolsError(
+            "\n".join(build_err_msg(errmsg=errmsg, src_obj=src_obj, src_arg=src_arg, errs=errs))
+        )
+    return obj
 
 
-def coerce_int_float(value: Union[int, float, str]) -> Union[int, float]:
+def build_err_msg(errmsg=None, src_obj=None, src_arg=None, errs=None) -> List[str]:
+    """Pass."""
+    ret = []
+    ret += listify(errmsg)
+    if src_arg:
+        ret.append(f"Error while handling argument {src_arg}")
+    if src_obj:
+        ret.append(f"Source object: {src_obj}")
+    ret += listify(errs)
+    return ret
+
+
+def coerce_int_float(
+    value: Union[int, float, str],
+    max_value: Optional[int] = None,
+    min_value: Optional[int] = None,
+    valid_values: Optional[List[int]] = None,
+    allow_none: bool = False,
+    allow_none_strs: bool = False,
+    none_strs: List[str] = NONE_STRS,
+    errmsg: Optional[str] = None,
+    src_obj: Optional[object] = None,
+    src_arg: Optional[str] = None,
+) -> Optional[Union[int, float]]:
     """Convert an object into int or float.
 
     Args:
-        obj: object to convert to int or float
+        value: object to convert to int or float
+        max_value: throw error if value is over this
+        min_value: throw error if value is under this
+        allow_none: if str of value lowered and stripped matches one of none_strs
+        valid_values: throw error if value is not one of these values
+        errmsg: optional error msg to show first
+        src_obj: optional object using this tool
+        src_arg: optional property using this tool
 
     Raises:
-        :exc:`ToolsError`: if obj is not able to be converted to int or float
+        :exc:`ToolsError`: if value is not able to be converted to int or float
     """
-    if isinstance(value, float):
-        return value
-
-    if isinstance(value, int):
-        return value
+    if (allow_none and value is None) or (
+        allow_none_strs and str(value).lower().strip() in listify(none_strs)
+    ):
+        return None
 
     if isinstance(value, str):
         value = value.strip()
 
+        if "." in value and value.replace(".", "").isdigit():
+            value = float(value)
+
         if value.isdigit():
-            return int(value)
+            value = int(value)
 
-        if value.replace(".", "").isdigit():
-            return float(value)
+    errs = []
+    if not isinstance(value, (int, float)):
+        vtype = type(value).__name__
+        errs.append(f"Supplied value {value!r} of type {vtype} is not an integer or float.")
+    else:
+        errs += check_min_max_valid(
+            value=value, min_value=min_value, max_value=max_value, valid_values=valid_values
+        )
 
-    vtype = type(value).__name__
-    raise ToolsError(f"Supplied value {value!r} of type {vtype} is not an integer or float.")
+    if errs:
+        raise ToolsError(
+            "\n".join(build_err_msg(errmsg=errmsg, src_obj=src_obj, src_arg=src_arg, errs=errs))
+        )
+    return value
 
 
-def coerce_bool(obj: Any, errmsg: Optional[str] = None) -> bool:
+def coerce_bool(
+    obj: Any,
+    errmsg: Optional[str] = None,
+    none_strs: List[str] = NONE_STRS,
+    src_obj: Optional[object] = None,
+    src_arg: Optional[str] = None,
+    allow_none: bool = False,
+) -> bool:
     """Convert an object into bool.
 
     Args:
@@ -188,6 +268,9 @@ def coerce_bool(obj: Any, errmsg: Optional[str] = None) -> bool:
     def combine(obj):
         return ", ".join([f"{x!r}" for x in obj])
 
+    if allow_none and (obj is None or str(obj).lower().strip() in none_strs):
+        return None
+
     coerce_obj = obj
 
     if isinstance(obj, str):
@@ -200,20 +283,66 @@ def coerce_bool(obj: Any, errmsg: Optional[str] = None) -> bool:
         return False
 
     vtype = type(obj).__name__
-    msg = listify(errmsg)
-    msg += [
+    errs = [
         f"Supplied value {coerce_obj!r} of type {vtype} must be one of:",
         f"  For True: {combine(YES)}",
         f"  For False: {combine(NO)}",
     ]
-    raise ToolsError("\n".join(msg))
-
-
-def is_str(value: Any, not_empty: bool = True) -> bool:
-    """Check if value is non empty string."""
-    return isinstance(value, str) and (
-        isinstance(value, str) and bool(value.strip()) if not_empty else True
+    raise ToolsError(
+        "\n".join(build_err_msg(errmsg=errmsg, src_obj=src_obj, src_arg=src_arg, errs=errs))
     )
+
+
+def is_str(value: Any, not_empty: bool = True, strip=None) -> bool:
+    """Check if value is non empty string."""
+    if isinstance(value, str):
+        if not_empty:
+            return bool(value.strip(strip))
+        return True
+    return False
+
+
+def check_is_strs(
+    values: Any,
+    src: str = "",
+    parse_split: bool = False,
+    split_on: str = ",",
+    not_empty_list: bool = True,
+    not_empty_str: bool = True,
+) -> List[str]:
+    """Check if a value is a list of non-empty strings."""
+
+    def adderr(msg, idx):
+        if msg not in errs:
+            errs[msg] = []
+        if isinstance(idx, int):
+            errs[msg].append(idx)
+
+    checks = listify(values)
+
+    errs = {}
+    if not_empty_list and not checks:
+        adderr(msg="Empty list not allowed", idx=None)
+
+    ret = []
+    for idx, check in enumerate(checks):
+        if isinstance(check, str):
+            if not_empty_str and not check.strip():
+                adderr(msg="Empty string", idx=idx)
+                continue
+
+            if parse_split:
+                ret += [x.strip() for x in check.split(split_on) if x.strip()]
+            else:
+                ret.append(check)
+        else:
+            adderr(msg=f"Bad type {type(check)}", idx=idx)
+
+    if errs:
+        err_pre = f"Errors while checking supplied {src} {values!r} as a list of strings"
+        msgs = "\n" + "\n".join([f"{k} at indexes: {v}" for k, v in errs.items()])
+        raise ToolsError(f"{err_pre}:{msgs}")
+    return ret
 
 
 def is_email(value: Any) -> bool:
@@ -370,7 +499,7 @@ def json_load(obj: str, error: bool = True, **kwargs) -> Any:
 def json_log(
     obj: Any,
     error: bool = False,
-    trim: Optional[int] = MAX_BODY_LEN,
+    trim: Optional[int] = None,
     trim_lines: bool = True,
     trim_msg: str = TRIM_MSG,
     **kwargs,
@@ -528,7 +657,7 @@ def dt_within_min(
     return dt_min_ago(obj=obj) >= int(n)
 
 
-def get_path(obj: PathLike) -> pathlib.Path:
+def get_path(obj: T_Pathy) -> pathlib.Path:
     """Convert a str into a fully resolved & expanded Path object.
 
     Args:
@@ -538,7 +667,7 @@ def get_path(obj: PathLike) -> pathlib.Path:
 
 
 def path_read(
-    obj: PathLike, binary: bool = False, is_json: bool = False, **kwargs
+    obj: T_Pathy, binary: bool = False, is_json: bool = False, **kwargs
 ) -> Union[bytes, str]:
     """Read data from a file.
 
@@ -575,19 +704,19 @@ def path_read(
     return robj, data
 
 
-def get_backup_filename(path: PathLike) -> str:
+def get_backup_filename(path: T_Pathy) -> str:
     """Pass."""
     path = get_path(obj=path)
     return f"{path.stem}_{dt_now_file()}{path.suffix}"
 
 
-def get_backup_path(path: PathLike) -> pathlib.Path:
+def get_backup_path(path: T_Pathy) -> pathlib.Path:
     """Pass."""
     path = get_path(obj=path)
     return path.parent / get_backup_filename(path=path)
 
 
-def check_path_is_not_dir(path: PathLike) -> pathlib.Path:
+def check_path_is_not_dir(path: T_Pathy) -> pathlib.Path:
     """Pass."""
     path = get_path(obj=path)
     if path.is_dir():
@@ -596,7 +725,7 @@ def check_path_is_not_dir(path: PathLike) -> pathlib.Path:
 
 
 def path_create_parent_dir(
-    path: PathLike, make_parent: bool = True, protect_parent=0o700
+    path: T_Pathy, make_parent: bool = True, protect_parent=0o700
 ) -> pathlib.Path:
     """Pass."""
     path = get_path(obj=path)
@@ -612,8 +741,8 @@ def path_create_parent_dir(
 
 
 def path_backup_file(
-    path: PathLike,
-    backup_path: Optional[PathLike] = None,
+    path: T_Pathy,
+    backup_path: Optional[T_Pathy] = None,
     make_parent: bool = True,
     protect_parent=0o700,
     **kwargs,
@@ -639,7 +768,7 @@ def path_backup_file(
 
 
 def auto_suffix(
-    path: PathLike,
+    path: T_Pathy,
     data: Union[bytes, str],
     error: bool = False,
     **kwargs,
@@ -653,11 +782,11 @@ def auto_suffix(
 
 
 def path_write(
-    obj: PathLike,
+    obj: T_Pathy,
     data: Union[bytes, str],
     overwrite: bool = False,
     backup: bool = False,
-    backup_path: Optional[PathLike] = None,
+    backup_path: Optional[T_Pathy] = None,
     binary: bool = False,
     binary_encoding: str = "utf-8",
     is_json: bool = False,
@@ -1409,8 +1538,8 @@ def safe_replace(obj: dict, value: str) -> str:
 
 
 def safe_format(
-    value: PathLike, mapping: Optional[Dict[str, str]] = None, as_path: bool = False, **kwargs
-) -> PathLike:
+    value: T_Pathy, mapping: Optional[Dict[str, str]] = None, as_path: bool = False, **kwargs
+) -> T_Pathy:
     """Pass."""
     is_path = isinstance(value, pathlib.Path)
     to_update = str(value) if is_path else value
@@ -1492,3 +1621,11 @@ def lowish(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [lowish(x) for x in value]
     return value.lower() if isinstance(value, str) else value
+
+
+def is_tty(stream: Any) -> bool:
+    """Pass."""
+    try:
+        return stream.isatty()
+    except Exception:
+        return False
