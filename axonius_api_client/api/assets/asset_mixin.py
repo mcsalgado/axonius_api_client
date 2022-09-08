@@ -2,22 +2,27 @@
 """API model mixin for device and user assets."""
 import datetime
 import time
-from typing import Generator, List, Optional, Union
+from typing import Generator, List, Optional, TypeVar, Union
 
 import cachetools
 
-from ...constants.api import DEFAULT_CALLBACKS_CLS, MAX_PAGE_SIZE, PAGE_SIZE
+from ...constants.api import AXID, DEFAULT_CALLBACKS_CLS, MAX_PAGE_SIZE, PAGE_SIZE
 from ...exceptions import ApiError, NotFoundError, ResponseNotOk, StopFetch
-from ...tools import dt_now, dt_now_file, get_subcls, json_dump, listify
+from ...tools import check_is_strs, dt_now, dt_now_file, get_subcls, json_dump, listify
 from .. import json_api
 from ..api_endpoints import ApiEndpoints
 from ..asset_callbacks.tools import get_callbacks_cls
 from ..mixins import ModelMixins
 from ..wizards import Wizard, WizardCsv, WizardText
 
-GEN_TYPE = Union[Generator[dict, None, None], List[dict]]
-HISTORY_DATES_OBJ_CACHE = cachetools.TTLCache(maxsize=1, ttl=300)
-HISTORY_DATES_CACHE = cachetools.TTLCache(maxsize=1, ttl=300)
+T_Update: TypeVar = json_api.enforcements.UpdateResponse
+T_Basic: TypeVar = json_api.enforcements.SetBasic
+T_Full: TypeVar = json_api.enforcements.SetFull
+T_Multi: TypeVar = Union[str, dict, T_Basic, T_Full, T_Update]
+T_Gen: TypeVar = Union[Generator[dict, None, None], List[dict]]
+
+CACHE_HISTORY_DATES_ASSET: cachetools.TTLCache = cachetools.TTLCache(maxsize=1, ttl=300)
+CACHE_HISTORY_DATES: cachetools.TTLCache = cachetools.TTLCache(maxsize=1, ttl=300)
 
 
 class AssetMixin(ModelMixins):
@@ -141,7 +146,7 @@ class AssetMixin(ModelMixins):
         kwargs["saved_query_id"] = sq["id"]
         return self.count(**kwargs)
 
-    def get(self, generator: bool = False, **kwargs) -> GEN_TYPE:
+    def get(self, generator: bool = False, **kwargs) -> T_Gen:
         r"""Get assets from a query.
 
         Examples:
@@ -439,7 +444,7 @@ class AssetMixin(ModelMixins):
 
         callbacks.stop()
 
-    def get_by_saved_query(self, name: str, **kwargs) -> GEN_TYPE:
+    def get_by_saved_query(self, name: str, **kwargs) -> T_Gen:
         """Get assets that would be returned by a saved query.
 
         Examples:
@@ -518,7 +523,7 @@ class AssetMixin(ModelMixins):
         post: str = "",
         field_manual: bool = False,
         **kwargs,
-    ) -> GEN_TYPE:  # pragma: no cover
+    ) -> T_Gen:  # pragma: no cover
         """Build a query to get assets where field in values.
 
         Notes:
@@ -561,7 +566,7 @@ class AssetMixin(ModelMixins):
         post: str = "",
         field_manual: bool = False,
         **kwargs,
-    ) -> GEN_TYPE:  # pragma: no cover
+    ) -> T_Gen:  # pragma: no cover
         """Build a query to get assets where field regex matches a value.
 
         Notes:
@@ -598,7 +603,7 @@ class AssetMixin(ModelMixins):
         post: str = "",
         field_manual: bool = False,
         **kwargs,
-    ) -> GEN_TYPE:  # pragma: no cover
+    ) -> T_Gen:  # pragma: no cover
         """Build a query to get assets where field equals a value.
 
         Notes:
@@ -627,12 +632,12 @@ class AssetMixin(ModelMixins):
 
         return self.get(**kwargs)
 
-    @cachetools.cached(cache=HISTORY_DATES_OBJ_CACHE)
+    @cachetools.cached(cache=CACHE_HISTORY_DATES_ASSET)
     def history_dates_obj(self) -> json_api.assets.AssetTypeHistoryDates:
         """Pass."""
         return self._history_dates().parsed[self.ASSET_TYPE]
 
-    @cachetools.cached(cache=HISTORY_DATES_CACHE)
+    @cachetools.cached(cache=CACHE_HISTORY_DATES)
     def history_dates(self) -> dict:
         """Get all known historical dates."""
         return self._history_dates().value[self.ASSET_TYPE]
