@@ -40,6 +40,16 @@ class Assets(ApiEndpointGroup):
     )
     # PBUG: include_notes=True ignored if fields are specified
 
+    run_enforcement: ApiEndpoint = ApiEndpoint(
+        method="PUT",
+        path="api/{asset_type}/enforce",
+        request_schema_cls=json_api.assets.RunEnforcementRequestSchema,
+        request_model_cls=json_api.assets.RunEnforcementRequest,
+        response_schema_cls=None,
+        response_model_cls=None,
+        response_as_text=True,
+    )
+
     get_by_id: ApiEndpoint = ApiEndpoint(
         method="get",
         path="api/V4.0/{asset_type}/{internal_axon_id}",
