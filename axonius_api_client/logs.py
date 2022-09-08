@@ -2,12 +2,11 @@
 """Logging utilities."""
 import logging
 import logging.handlers
-import pathlib
 import sys
 import time
 from typing import Dict, List, Optional, Union
 
-from . import LOG
+from . import PACKAGE_LOG
 from .constants.logs import (
     LOG_DATEFMT_CONSOLE,
     LOG_DATEFMT_FILE,
@@ -27,6 +26,7 @@ from .constants.logs import (
     LOG_NAME_STDERR,
     LOG_NAME_STDOUT,
 )
+from .constants.typer import T_LogLevel, T_LogObjs, T_Pathy
 from .exceptions import ToolsError
 from .tools import get_path, is_int
 
@@ -41,7 +41,12 @@ def localtime():
     logging.Formatter.converter = time.localtime
 
 
-def get_obj_log(obj: object, level: Optional[Union[int, str]] = None, **kwargs) -> logging.Logger:
+def get_obj_log(
+    obj: object,
+    level: Optional[T_LogLevel] = None,
+    logger: Optional[logging.Logger] = None,
+    **kwargs,
+) -> logging.Logger:
     """Get a child logger for an object.
 
     Args:
@@ -49,26 +54,61 @@ def get_obj_log(obj: object, level: Optional[Union[int, str]] = None, **kwargs) 
         level: level to set
         logger: logger to get child from
     """
-    logger = kwargs.get("logger", logging.getLogger(obj.__class__.__module__))
-    log = logger.getChild(obj.__class__.__name__)
+    log = get_obj_logger(obj=obj, logger=logger)
     set_log_level(obj=log, level=level)
     return log
 
 
-def set_log_level(
-    obj: Union[logging.Logger, logging.Handler], level: Optional[Union[int, str]] = None
-):
+def get_obj_logger(obj: object, logger: Optional[logging.Logger] = None) -> logging.Logger:
+    """Get a child logger for an object.
+
+    Args:
+        obj: object to get a logger for
+        level: level to set
+        logger: logger to get child from
+    """
+    if not isinstance(logger, logging.Logger):
+        logger = logging.getLogger(obj.__class__.__module__)
+    log = logger.getChild(obj.__class__.__name__)
+    return log
+
+
+def set_log_level(obj: T_LogObjs, level: Optional[T_LogLevel] = None):
     """Set a logger or handler to a log level.
 
     Args:
         obj: object to set lvl on
         level: level to set
     """
-    if isinstance(level, (int, str)):
+    if isinstance(level, T_LogLevel):
         obj.setLevel(getattr(logging, str_level(level=level)))
 
 
-def str_level(level: Union[int, str]) -> str:
+def set_get_log_level(obj: Union[T_LogObjs, str], level: T_LogLevel, children: bool = False) -> str:
+    """Set a logger or handler to a log level.
+
+    Args:
+        obj: object to set lvl on, if str, get logger
+        level: level to set
+    """
+    if isinstance(obj, str):
+        obj = logging.getLogger(obj)
+
+    if not isinstance(obj, T_LogObjs):
+        raise ToolsError(f"Obj {obj!r} must be {T_LogObjs}, not type {type(obj)}")
+
+    level_str = str_level(level=level)
+    level_int = getattr(logging, level_str)
+
+    obj.setLevel(level_int)
+    if children:
+        for name, logger in obj.manager.loggerDict.items():
+            if name.startswith(obj.name):
+                obj.setLevel(level_int)
+    return level_str
+
+
+def str_level(level: T_LogLevel) -> str:
     """Get a logging level in str format.
 
     Args:
@@ -77,7 +117,6 @@ def str_level(level: Union[int, str]) -> str:
     Raises:
         :exc:`ToolsError`: if level is not mappable as an int or str to a known logger level
     """
-    # ret = ""
     if is_int(obj=level, digit=True):
         level_mapped = logging.getLevelName(int(level))
         if hasattr(logging, level_mapped):
@@ -95,7 +134,7 @@ def str_level(level: Union[int, str]) -> str:
 
 def add_stderr(
     obj: logging.Logger,
-    level: Union[int, str] = LOG_LEVEL_CONSOLE,
+    level: T_LogLevel = LOG_LEVEL_CONSOLE,
     hname: str = LOG_NAME_STDERR,
     fmt: str = LOG_FMT_CONSOLE,
     datefmt: str = LOG_DATEFMT_CONSOLE,
@@ -121,7 +160,7 @@ def add_stderr(
 
 def add_stdout(
     obj: logging.Logger,
-    level: Union[int, str] = LOG_LEVEL_CONSOLE,
+    level: T_LogLevel = LOG_LEVEL_CONSOLE,
     hname: str = LOG_NAME_STDOUT,
     fmt: str = LOG_FMT_CONSOLE,
     datefmt: str = LOG_DATEFMT_CONSOLE,
@@ -147,13 +186,13 @@ def add_stdout(
 
 def add_file(
     obj: logging.Logger,
-    level: Union[int, str] = LOG_LEVEL_FILE,
+    level: T_LogLevel = LOG_LEVEL_FILE,
     hname: str = LOG_NAME_FILE,
-    file_path: Union[pathlib.Path, str] = LOG_FILE_PATH,
-    file_name: Union[pathlib.Path, str] = LOG_FILE_NAME,
+    file_path: T_Pathy = LOG_FILE_PATH,
+    file_name: T_Pathy = LOG_FILE_NAME,
     file_path_mode=LOG_FILE_PATH_MODE,
-    max_mb: int = LOG_FILE_MAX_MB,
-    max_files: int = LOG_FILE_MAX_FILES,
+    max_mb: Optional[int] = LOG_FILE_MAX_MB,
+    max_files: Optional[int] = LOG_FILE_MAX_FILES,
     fmt: str = LOG_FMT_FILE,
     datefmt: str = LOG_DATEFMT_FILE,
 ) -> logging.handlers.RotatingFileHandler:
@@ -174,6 +213,13 @@ def add_file(
     path = get_path(obj=file_path)
     path.mkdir(mode=file_path_mode, parents=True, exist_ok=True)
 
+    args = {}
+    if isinstance(max_mb, int) and max_mb > 0:
+        args["maxBytes"] = max_mb * 1024 * 1024
+
+    if isinstance(max_files, int) and max_files > 0:
+        args["backupCount"] = max_files
+
     handler = add_handler(
         obj=obj,
         level=level,
@@ -182,8 +228,7 @@ def add_file(
         datefmt=datefmt,
         hname=hname,
         filename=str(path / file_name),
-        maxBytes=max_mb * 1024 * 1024,
-        backupCount=max_files,
+        **args,
     )
     handler.PATH = path
     return handler
@@ -211,7 +256,7 @@ def add_handler(
     hname: str,
     fmt: str = LOG_FMT_CONSOLE,
     datefmt: str = LOG_DATEFMT_CONSOLE,
-    level: Optional[Union[str, int]] = None,
+    level: Optional[T_LogLevel] = None,
     **kwargs,
 ) -> logging.Handler:
     """Add a handler to a logger obj.
@@ -348,15 +393,15 @@ def find_handlers(
     return handlers
 
 
-add_null(obj=LOG)
+add_null(obj=PACKAGE_LOG)
 gmtime()
-set_log_level(obj=LOG, level=LOG_LEVEL_PACKAGE)
+set_log_level(obj=PACKAGE_LOG, level=LOG_LEVEL_PACKAGE)
 
 
 def handle_unhandled_exception(exc_type, exc_value, exc_traceback):  # pragma: no cover
     """Log unhandled exceptions."""
     sys.__excepthook__(exc_type, exc_value, exc_traceback)
-    LOG.critical("Unhandled exception", exc_info=(exc_type, exc_value, exc_traceback))
+    PACKAGE_LOG.critical("Unhandled exception", exc_info=(exc_type, exc_value, exc_traceback))
 
 
 sys.excepthook = handle_unhandled_exception
