@@ -10,7 +10,7 @@ import marshmallow
 import marshmallow_jsonapi
 
 from ...constants.adapters import DISCOVERY_NAME, GENERIC_NAME, INGESTION_NAME
-from ...constants.general import STR_RE_LISTY
+from ...constants.typer import T_CoerceReListy
 from ...exceptions import ApiError, NotFoundError
 from ...http import Http
 from ...parsers.config import parse_schema
@@ -582,7 +582,7 @@ class AdapterFetchHistoryFilters(BaseModel):
         """Pass."""
         return AdapterFetchHistoryFiltersSchema
 
-    def check_value(self, value_type: str, value: Optional[STR_RE_LISTY]) -> List[str]:
+    def check_value(self, value_type: str, value: Optional[T_CoerceReListy]) -> List[str]:
         """Pass."""
 
         def is_match(item):
@@ -618,7 +618,9 @@ class AdapterFetchHistoryFilters(BaseModel):
         elif value is None:
             return []
         else:
-            raise ApiError(f"Value must be {STR_RE_LISTY}, not type={type(value)}, value={value!r}")
+            raise ApiError(
+                f"Value must be {T_CoerceReListy}, not type={type(value)}, value={value!r}"
+            )
 
         items = getattr(self, value_type)
         matches = []
