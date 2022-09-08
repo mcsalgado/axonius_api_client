@@ -7,6 +7,7 @@ from typing import Any, List, Optional, Type, Union
 LOG: logging.Logger = logging.getLogger(__name__)
 HUMAN_KEY_ALIGN: int = 32
 HUMAN_CAP_WORDS: List[str] = ["id", "url", "crl", "sha256", "sha1", "ssl"]
+HUMAN_SIZES: List[str] = ["bytes", "KB", "MB", "GB", "TB"]
 
 
 def type_str(value: Any, max_len: int = 60, join: Optional[str] = ", ") -> Union[str, List[str]]:
@@ -151,3 +152,40 @@ def listify(value: Any, dictkeys: bool = False) -> list:
         return list(value)
 
     return [value]
+
+
+def str_to_int_float(
+    value: Union[int, float, str, bytes], allow_none: bool = False
+) -> Optional[Union[int, float]]:
+    """Convert a string into int or float."""
+    check_type(value=value, exp=(int, str, bytes, float), allow_none=allow_none)
+    if value is None:
+        return None
+
+    if isinstance(value, float):
+        return value
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, (str, bytes)):
+        value = value.strip()
+
+        if "." in value and value.replace(".", "").isdigit():
+            return float(value)
+
+        if value.isdigit():
+            return int(value)
+
+
+def human_size(
+    value: Union[int, str, bytes, float], decimals: int = 2, allow_none: bool = False
+) -> str:
+    """Convert bytes to human readable."""
+    value = str_to_int_float(value=value, allow_none=allow_none)
+    if value is None:
+        return ""
+    for size in HUMAN_SIZES:
+        if value < 1024.0:
+            return f"{value:0.{decimals}f} {size}"
+        value /= 1024.0
