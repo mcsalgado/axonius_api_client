@@ -15,12 +15,12 @@ from ...constants.fields import (
     FIELDS_ENTITY_PASSTHRU,
     SCHEMAS_CUSTOM,
 )
+from ...constants.typer import T_Pathy
 from ...exceptions import ApiError
 
 # from ...parsers.fields import schema_custom
 from ...tools import calc_percent  # json_dump,
 from ...tools import (
-    PathLike,
     check_path_is_not_dir,
     coerce_int,
     dt_now,
@@ -1341,7 +1341,7 @@ class ExportMixins(Base):
         return self.get_arg_value("export_fd")
 
     @property
-    def arg_export_file(self) -> Optional[PathLike]:
+    def arg_export_file(self) -> Optional[T_Pathy]:
         """Pass."""
         value = self.get_arg_value("export_file")
         if isinstance(value, (str, pathlib.Path)) and value:
