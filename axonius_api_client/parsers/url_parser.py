@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """HTTP client."""
-from typing import Union
+from typing import TypeVar, Union
 from urllib.parse import urlparse, urlunparse
 
 from ..exceptions import HttpError
+
+T_Url: TypeVar = Union["UrlParser", str]
 
 
 class UrlParser:
