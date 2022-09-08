@@ -9,7 +9,7 @@ import dataclasses_json
 import marshmallow
 import marshmallow_jsonapi
 
-from ...constants.general import SIMPLE
+from ...constants.typer import T_Simples
 from ...exceptions import (
     ApiAttributeMissingError,
     ApiAttributeTypeError,
@@ -328,11 +328,11 @@ class BaseModel(dataclasses_json.DataClassJsonMixin, BaseCommon):
 
             if isinstance(v, dict):
                 for a, b in v.items():
-                    if isinstance(b, SIMPLE):
+                    if isinstance(b, T_Simples):
                         ret[f"{k}[{a}]"] = b
-            elif isinstance(v, SIMPLE):
+            elif isinstance(v, T_Simples):
                 ret[k] = v
-            elif isinstance(v, (list, tuple)) and v and all([isinstance(x, SIMPLE) for x in v]):
+            elif isinstance(v, (list, tuple)) and v and all([isinstance(x, T_Simples) for x in v]):
                 ret[k] = v
         return ret
 
