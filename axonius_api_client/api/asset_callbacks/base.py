@@ -17,10 +17,8 @@ from ...constants.fields import (
 )
 from ...constants.typer import T_Pathy
 from ...exceptions import ApiError
-
-# from ...parsers.fields import schema_custom
-from ...tools import calc_percent  # json_dump,
 from ...tools import (
+    calc_percent,
     check_path_is_not_dir,
     coerce_int,
     dt_now,
@@ -195,6 +193,7 @@ class Base:
             "custom_cbs": [],
             "debug_timing": False,
             "explode_entities": False,
+            "enforce": None,
         }
 
     def get_arg_value(self, arg: str) -> Union[str, list, bool, int]:
@@ -242,18 +241,27 @@ class Base:
         self.TAG_ROWS_ADD: List[dict] = []
         self.TAG_ROWS_REMOVE: List[dict] = []
         self.CUSTOM_CB_EXC: List[dict] = []
+        self.IDS: List[str] = []
         self._init()
 
     def _init(self):
         """Post init setup."""
         pass
 
-    def start(self, **kwargs):
-        """Start this callbacks object."""
-        self.echo(msg=f"Starting {self}")
-        excludes = listify(self.get_arg_value("field_excludes"))
-        explode_entities = self.get_arg_value("explode_entities")
+    def start_enforce(self):
+        """Pass."""
+        enforce = self.get_arg_value("enforce")
+        if enforce:
+            self.STORE["enforcement"] = enforcement = self.APIOBJ.enforcements.get_set(
+                value=enforce, refetch=False
+            )
+            self.echo(msg=f"Fetched enforcement set to run after fetch finished:\n{enforcement}")
+
+    def start_details(self):
+        """Pass."""
         include_details = self.STORE.get("include_details", False)
+        explode_entities = self.get_arg_value("explode_entities")
+        excludes = listify(self.get_arg_value("field_excludes"))
 
         if explode_entities:
             if not include_details:
@@ -268,6 +276,12 @@ class Base:
             self.echo(msg=f"Adding fields {missing} to field_excludes: {excludes}", debug=True)
             self.set_arg_value("field_excludes", value=excludes + missing)
 
+    def start(self, **kwargs):
+        """Start this callbacks object."""
+        self.echo(msg=f"Starting {self}")
+        self.start_enforce()
+        self.start_details()
+
         cbargs = crjoin(join_kv(obj=self.GETARGS))
         self.LOG.debug(f"Get Extra Arguments: {cbargs}")
 
@@ -276,6 +290,12 @@ class Base:
 
         store = crjoin(join_kv(obj=self.STORE))
         self.echo(msg=f"Get Arguments: {store}")
+
+    def stop(self, **kwargs):
+        """Stop this callbacks object."""
+        self.do_tagging()
+        self.do_enforce()
+        self.echo(msg=f"Stopping {self}")
 
     def echo_columns(self, **kwargs):
         """Echo the columns of the fields selected."""
@@ -295,10 +315,22 @@ class Base:
         self.echo(msg=f"Final Columns: {final_columns}")
         self.ECHO_DONE = True
 
-    def stop(self, **kwargs):
-        """Stop this callbacks object."""
-        self.do_tagging()
-        self.echo(msg=f"Stopping {self}")
+    def do_enforce(self):
+        """Pass."""
+        enforce = self.get_arg_value("enforce")
+        if enforce:
+            enforcement = self.STORE["enforcement"]
+            self.echo(
+                msg=f"Running enforcement set {enforcement.name!r} against {len(self.IDS)} assets"
+            )
+            self.APIOBJ.enforce(
+                value=enforcement,
+                ids=self.IDS,
+                verify=False,
+                refetch=False,
+                fields=self.STORE["fields_parsed"],
+                query=self.STORE["query"],
+            )
 
     def echo_page_progress(self):
         """Echo progress per N rows using an echo method."""
@@ -380,6 +412,7 @@ class Base:
         Args:
             rows: rows to process
         """
+        self.IDS += [x["internal_axon_id"] for x in rows]
         debug_timing = self.get_arg_value("debug_timing")
 
         if debug_timing:  # pragma: no cover
@@ -1409,5 +1442,6 @@ ARG_DESCRIPTIONS: dict = {
     "xlsx_cell_format": "For XLSX Export: Formatting to apply to every cell",
     "debug_timing": "Enable logging of time taken for each callback",
     "explode_entities": "Split rows into one row for each asset entity",
+    "enforce": "Name of enforcement set to run against assets returned from query",
 }
 """Descriptions of all arguments for all callbacks"""
