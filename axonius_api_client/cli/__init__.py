@@ -5,23 +5,9 @@ import sys
 import click
 
 from .. import version
-from ..constants.api import TIMEOUT_CONNECT, TIMEOUT_RESPONSE
-from ..constants.logs import (
-    LOG_FILE_MAX_FILES,
-    LOG_FILE_MAX_MB,
-    LOG_FILE_NAME,
-    LOG_FILE_PATH,
-    LOG_LEVEL_API,
-    LOG_LEVEL_AUTH,
-    LOG_LEVEL_CONSOLE,
-    LOG_LEVEL_FILE,
-    LOG_LEVEL_HTTP,
-    LOG_LEVEL_PACKAGE,
-    LOG_LEVELS_STR,
-    REQUEST_ATTR_MAP,
-    RESPONSE_ATTR_MAP,
-)
-from ..logs import LOG
+from ..constants.http import VARS_CLI, VARS_CLIENT, AttrMaps
+from ..constants.logs import LOG_LEVELS_STR
+from ..logs import PACKAGE_LOG
 from . import (
     context,
     grp_adapters,
@@ -34,25 +20,25 @@ from . import (
 )
 
 
-@click.group(
-    cls=context.AliasedGroup,
-    context_settings=context.CONTEXT_SETTINGS,
-    epilog="""
+PROTIPS: str = """
 \b
 Tips:
 - All of the options listed above must be supplied BEFORE any commands or groups.
   - CORRECT: axonshell --log-console devices count
   - INCORRECT: axonshell devices count --log-console
-- Use OS Environment variable AX_ENV to point to a custom .env file:
-  - bash: export AX_ENV=/path/to/.env  # for all commands in current shell
-  - bash: AX_ENV=/path/to/.env axonshell tools shell  # for single commands
-  - cmd.exe: setenv AX_ENV c:\\path\\to\\.env
-- Use OS Environment variables AX_COOKIES and AX_HEADERS as comma seperated values:
-  - key1=value1,key2=value2,key3=value4
-- Use OS Environment variables AX_URL, AX_KEY, AX_SECRET to specify credentials
-- All values stored in .env files will be treated as OS environment variables.
-""",
-)
+- OS Environment variables:
+  1) All values stored in .env files will be treated as OS environment variables.
+  2) Use  AX_ENV to point to a custom .env file:
+    - bash: export AX_ENV=/path/to/.env  # for all commands in current shell
+    - bash: AX_ENV=/path/to/.env axonshell tools shell  # for single commands
+    - cmd.exe: setenv AX_ENV c:\\path\\to\\.env
+  3) Use AX_COOKIES and AX_HEADERS as comma seperated values:
+    - key1=value1,key2=value2,key3=value4
+  4) Use AX_URL, AX_KEY, AX_SECRET to specify credentials
+"""
+
+
+@click.group(cls=context.AliasedGroup, context_settings=context.CONTEXT_SETTINGS, epilog=PROTIPS)
 @click.option(
     "--quiet/--no-quiet",
     "-q/-nq",
@@ -66,6 +52,7 @@ Tips:
     "--header",
     "headers",
     help="Additional headers to use in all requests in the format of key=value (multiples)",
+    # let http client handle OS env
     allow_from_autoenv=False,
     show_default=False,
     multiple=True,
@@ -75,6 +62,7 @@ Tips:
     "--cookie",
     "cookies",
     help="Additional cookies to use in all requests in the format of key=value (multiples)",
+    # let http client handle OS env
     allow_from_autoenv=False,
     show_default=False,
     multiple=True,
@@ -84,7 +72,7 @@ Tips:
     "--log-level-package",
     "-lvlpkg",
     "log_level_package",
-    default=LOG_LEVEL_PACKAGE,
+    default=VARS_CLIENT.log_level_package,
     help="Logging level to use for entire package.",
     type=click.Choice(LOG_LEVELS_STR),
     show_envvar=True,
@@ -94,18 +82,8 @@ Tips:
     "--log-level-http",
     "-lvlhttp",
     "log_level_http",
-    default=LOG_LEVEL_HTTP,
+    default=VARS_CLIENT.log_level_http,
     help="Logging level to use for http client.",
-    type=click.Choice(LOG_LEVELS_STR),
-    show_envvar=True,
-    show_default=True,
-)
-@click.option(
-    "--log-level-auth",
-    "-lvlauth",
-    "log_level_auth",
-    default=LOG_LEVEL_AUTH,
-    help="Logging level to use for auth client.",
     type=click.Choice(LOG_LEVELS_STR),
     show_envvar=True,
     show_default=True,
@@ -114,7 +92,7 @@ Tips:
     "--log-level-api",
     "-lvlapi",
     "log_level_api",
-    default=LOG_LEVEL_API,
+    default=VARS_CLIENT.log_level_api,
     help="Logging level to use for api clients.",
     type=click.Choice(LOG_LEVELS_STR),
     show_envvar=True,
@@ -124,7 +102,7 @@ Tips:
     "--log-level-console",
     "-lvlcon",
     "log_level_console",
-    default=LOG_LEVEL_CONSOLE,
+    default=VARS_CLIENT.log_level_console,
     help="Logging level to use for console output.",
     type=click.Choice(LOG_LEVELS_STR),
     show_envvar=True,
@@ -134,7 +112,7 @@ Tips:
     "--log-level-file",
     "-lvlfile",
     "log_level_file",
-    default=LOG_LEVEL_FILE,
+    default=VARS_CLIENT.log_level_file,
     help="Logging level to use for file output.",
     type=click.Choice(LOG_LEVELS_STR),
     show_envvar=True,
@@ -144,27 +122,25 @@ Tips:
     "--log-request-attrs",
     "-reqattr",
     "log_request_attrs",
-    help="Log http client request attributes (multiples)",
-    default=["size", "url"],
-    multiple=True,
-    type=click.Choice(list(REQUEST_ATTR_MAP) + ["all"]),
+    help=f"Log http client request attributes (CSV list of any of: {AttrMaps.request_attrs})",
+    default=VARS_CLIENT.log_request_attrs,
     show_envvar=True,
+    show_default=True,
 )
 @click.option(
     "--log-response-attrs",
     "-respattr",
     "log_response_attrs",
-    default=["size", "url", "status", "elapsed"],
-    help="Log http client response attributes (multiples)",
-    multiple=True,
-    type=click.Choice(list(RESPONSE_ATTR_MAP) + ["all"]),
+    default=VARS_CLIENT.log_response_attrs,
+    help="Log http client response attributes  (CSV list of any of: {AttrMaps.response_attrs})",
     show_envvar=True,
+    show_default=True,
 )
 @click.option(
     "--log-request-body",
     "-reqbody",
     "log_request_body",
-    default=False,
+    default=VARS_CLIENT.log_request_body,
     help="Log http client request body.",
     is_flag=True,
     show_envvar=True,
@@ -174,7 +150,7 @@ Tips:
     "-respbody",
     "log_response_body",
     help="Log http client response body.",
-    default=False,
+    default=VARS_CLIENT.log_response_body,
     is_flag=True,
     show_envvar=True,
 )
@@ -182,7 +158,7 @@ Tips:
     "--log-console/--no-log-console",
     "-c/-nc",
     "log_console",
-    default=False,
+    default=VARS_CLIENT.log_console,
     help="Enable logging to STDERR.",
     is_flag=True,
     show_envvar=True,
@@ -191,7 +167,7 @@ Tips:
     "--log-file/--no-log-file",
     "-f/-nf",
     "log_file",
-    default=True,
+    default=VARS_CLIENT.log_file,
     help="Enable logging to -fn/--log-file-name in -fp/--log-file-path.",
     is_flag=True,
     show_envvar=True,
@@ -200,7 +176,7 @@ Tips:
     "--log-file-rotate/--no-log-file-rotate",
     "-fr/-nfr",
     "log_file_rotate",
-    default=True,
+    default=VARS_CLI.log_file_rotate,
     help="Force the log file to rotate.",
     is_flag=True,
     show_envvar=True,
@@ -210,7 +186,7 @@ Tips:
     "-fn",
     "log_file_name",
     metavar="FILENAME",
-    default=LOG_FILE_NAME,
+    default=VARS_CLIENT.log_file_name,
     help="Log file to save logs to if -f/--log-file supplied.",
     show_envvar=True,
     show_default=True,
@@ -220,7 +196,7 @@ Tips:
     "-fp",
     "log_file_path",
     metavar="PATH",
-    default=LOG_FILE_PATH,
+    default=VARS_CLIENT.log_file_path,
     help="Directory to use for -fn/--log-file-name (Defaults to current directory).",
     show_envvar=True,
 )
@@ -228,9 +204,8 @@ Tips:
     "--log-file-max-mb",
     "-fmb",
     "log_file_max_mb",
-    default=LOG_FILE_MAX_MB,
+    default=VARS_CLIENT.log_file_max_mb,
     help="Rollover -fn/--log-file-name at this many megabytes.",
-    type=click.INT,
     show_envvar=True,
     show_default=True,
 )
@@ -238,9 +213,8 @@ Tips:
     "--log-file-max-files",
     "-fmf",
     "log_file_max_files",
-    default=LOG_FILE_MAX_FILES,
+    default=VARS_CLIENT.log_file_max_files,
     help="Keep this many rollover logs.",
-    type=click.INT,
     show_envvar=True,
     show_default=True,
 )
@@ -248,7 +222,7 @@ Tips:
     "--proxy",
     "-p",
     "proxy",
-    default="",
+    default=VARS_CLIENT.proxy,
     help="Proxy to use to connect to Axonius.",
     metavar="PROXY",
     show_envvar=True,
@@ -258,68 +232,67 @@ Tips:
     "--cert-client-both",
     "-ccb",
     "cert_client_both",
-    type=click.Path(exists=True, resolve_path=True),
-    help="Path to client SSL certificate and private key in one file for mutual TLS.",
+    help="Mutual TLS: file with both the certificate and unenencrypted private key of client cert.",
     metavar="PATH",
     show_envvar=True,
-    show_default=True,
+    show_default=False,
 )
 @click.option(
     "--cert-client-cert",
     "-ccc",
     "cert_client_cert",
-    type=click.Path(exists=True, resolve_path=True),
-    help="Path to client SSL certificate for mutual TLS.",
+    help=(
+        "Mutual TLS: file with just the certificate of client cert "
+        "(must also supply --cert-client-key)."
+    ),
     metavar="PATH",
     show_envvar=True,
-    show_default=True,
+    show_default=False,
 )
 @click.option(
     "--cert-client-key",
     "-cck",
     "cert_client_key",
-    type=click.Path(exists=True, resolve_path=True),
-    help="Path to client SSL private key for mutual TLS",
+    help=(
+        "Mutual TLS: file with just the unencrypted private key of client cert "
+        "(must also supply --cert-client-cert)."
+    ),
     metavar="PATH",
     show_envvar=True,
-    show_default=True,
+    show_default=False,
 )
 @click.option(
     "--certpath",
     "-cp",
     "certpath",
-    type=click.Path(exists=True, resolve_path=True),
-    help="Path to SSL certificate for verifying the certificate offered by Axonius.",
+    help="File with SSL certificate for verifying the certificate offered by Axonius.",
     metavar="PATH",
     show_envvar=True,
-    show_default=True,
+    show_default=False,
 )
 @click.option(
-    "--certverify",
-    "-cv",
+    "--certverify/--no-certverify",
+    "-cv/-ncv",
     "certverify",
-    default=False,
-    help=(
-        "Perform SSL Certificate Verification (will fail if cert is self-signed"
-        " or not signed by a system CA)."
-    ),
+    default=VARS_CLIENT.certverify,
+    help="Perform SSL Certificate Verification.",
     is_flag=True,
     show_envvar=True,
 )
 @click.option(
-    "--no-certwarn",
-    "-ncw",
+    "--certwarn/--no-certwarn",
+    "-cw/-ncw",
     "certwarn",
-    default=True,
+    default=VARS_CLIENT.certwarn,
     help="Disable warnings for self-signed SSL certificates.",
     is_flag=True,
     show_envvar=True,
 )
 @click.option(
-    "--no-wraperror",
-    "-nw",
+    "--wraperror/--no-wraperror",
+    "-we/-nw",
     "wraperror",
-    default=True,
+    default=VARS_CLIENT.wraperror,
     help="Show the full traceback of exceptions instead of a wrapped error.",
     is_flag=True,
     show_envvar=True,
@@ -328,9 +301,8 @@ Tips:
     "--timeout-connect",
     "-tc",
     "timeout_connect",
-    default=TIMEOUT_CONNECT,
+    default=VARS_CLIENT.timeout_connect,
     help="Seconds to wait for connections to API",
-    type=click.INT,
     show_envvar=True,
     show_default=True,
 )
@@ -338,9 +310,8 @@ Tips:
     "--timeout-response",
     "-tr",
     "timeout_response",
-    default=TIMEOUT_RESPONSE,
+    default=VARS_CLIENT.timeout_response,
     help="Seconds to wait for responses from API",
-    type=click.INT,
     show_default=True,
 )
 @click.version_option(version.__version__)
@@ -353,7 +324,7 @@ def cli(click_ctx, ctx, quiet, **kwargs):
     except Exception:  # pragma: no cover
         cli_args = "No sys.argv!"
 
-    LOG.debug(f"sys.argv: {cli_args}")
+    PACKAGE_LOG.debug(f"sys.argv: {cli_args}")
     ctx._click_ctx = click_ctx
     ctx.QUIET = quiet
     ctx._connect_args.update(kwargs)

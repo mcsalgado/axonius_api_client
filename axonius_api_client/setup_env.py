@@ -46,6 +46,8 @@ class ENV_KEYS:
 
     SECRET: str = f"{KEY_PRE}SECRET"
     """OS env to get API secret from"""
+    USERNAME: str = f"{KEY_PRE}USERNAME"
+    PASSWORD: str = f"{KEY_PRE}PASSWORD"
 
     FEATURES: str = f"{KEY_PRE}FEATURES"
     """OS env to get API features to enable from"""
@@ -96,7 +98,9 @@ DEFAULT_CERTWARN: str = "yes"
 DEFAULT_ENV_FILE: str = ".env"
 """Default for :attr:`ENV_KEYS.ENV_FILE`"""
 
-KEYS_HIDDEN: List[str] = [ENV_KEYS.KEY, ENV_KEYS.SECRET, ENV_KEYS.USERNAME, ENV_KEYS.PASSWORD]
+DEFAULT_PATH: str = os.getcwd()
+
+KEYS_HIDDEN: List[str] = [ENV_KEYS.KEY, ENV_KEYS.SECRET]
 """List of keys to hide in :meth:`get_env_ax`"""
 
 HIDDEN: str = "_HIDDEN_"
@@ -104,7 +108,7 @@ HIDDEN: str = "_HIDDEN_"
 
 
 def find_dotenv(
-    ax_env: Optional[Union[str, pathlib.Path]] = None, default: str = os.getcwd()
+    ax_env: Optional[Union[str, pathlib.Path]] = None, default: str = DEFAULT_PATH
 ) -> Tuple[str, str]:
     """Find a .env file.
 
@@ -355,6 +359,18 @@ def get_env_secret(**kwargs) -> str:
     return get_env_str(key=ENV_KEYS.SECRET, default="", empty_ok=True)
 
 
+def get_env_username(**kwargs) -> str:
+    """Pass."""
+    _load(**kwargs)
+    return get_env_str(key=ENV_KEYS.USERNAME, default="", empty_ok=True)
+
+
+def get_env_password(**kwargs) -> str:
+    """Pass."""
+    _load(**kwargs)
+    return get_env_str(key=ENV_KEYS.PASSWORD, default="", empty_ok=True)
+
+
 def get_env_certwarn(**kwargs) -> bool:
     """Pass."""
     _load(**kwargs)
@@ -367,7 +383,7 @@ def get_env_banner(**kwargs) -> str:
     return get_env_str(key=ENV_KEYS.BANNER, default="", empty_ok=True)
 
 
-def get_env_connect(load: bool = True, **kwargs) -> dict:
+def get_env_connect(**kwargs) -> dict:
     """Get Connect arguments from OS env vars.
 
     Args:
@@ -381,6 +397,43 @@ def get_env_connect(load: bool = True, **kwargs) -> dict:
         "secret": get_env_secret(load=False),
         "certwarn": get_env_certwarn(load=False),
     }
+
+
+def get_env_values_http(**kwargs) -> dict:
+    """Get Http arguments from OS env vars.
+
+    Args:
+        **kwargs: passed to :meth:`load_dotenv`
+    """
+    kwargs.setdefault("load", True)
+    _load(**kwargs)
+    return {
+        "url": get_env_url(load=False),
+        "certwarn": get_env_certwarn(load=False),
+        "cookies": get_env_cookies(load=False),
+        "headers": get_env_headers(load=False),
+        "user_agent": get_env_user_agent(load=False),
+    }
+
+
+def get_env_values_client(**kwargs) -> dict:
+    """Get Connect arguments from OS env vars.
+
+    Args:
+        **kwargs: passed to :meth:`load_dotenv`
+    """
+    kwargs.setdefault("load", True)
+    _load(**kwargs)
+    env_client = {
+        "key": get_env_key(load=False),
+        "secret": get_env_secret(load=False),
+        "username": get_env_username(load=False),
+        "password": get_env_password(load=False),
+        "banner": get_env_banner(load=False),
+    }
+    ret = {}
+    ret.update(env_client)
+    return ret
 
 
 def get_env_features(**kwargs) -> List[str]:
@@ -412,6 +465,7 @@ def set_env(key: str, value: str, **kwargs) -> Tuple[str, Tuple[bool, str, str]]
     """Set an environment variable in .env file."""
     from . import INIT_DOTENV as ax_env
 
+    # XXX add if is_file/not exc?
     return dotenv.set_key(dotenv_path=ax_env, key_to_set=key, value_to_set=str(value))
 
 
@@ -424,8 +478,9 @@ DEBUG_USE = print if DEBUG_PRINT else LOGGER.debug
 DEBUG: bool = get_env_bool(key=ENV_KEYS.DEBUG, default=DEFAULT_DEBUG)
 """Enable package wide debugging."""
 
-DEBUG_LOG = DEBUG_USE if DEBUG else lambda x: x
+DEBUG_LOG = DEBUG_USE if DEBUG else lambda x: None
 """Function to use for debug logging"""
 
-DEFAULT_PATH: str = str(get_env_path(key=ENV_KEYS.DEFAULT_PATH, default=os.getcwd()))
+DEFAULT_PATH: str = str(get_env_path(key=ENV_KEYS.DEFAULT_PATH, default=DEFAULT_PATH))
 """Default path to use throughout this package"""
+# XXX axonshell protips

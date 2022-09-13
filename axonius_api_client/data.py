@@ -111,6 +111,11 @@ class BaseData:
         return dataclasses.fields(cls)
 
     @classmethod
+    def get_field_names(cls) -> List[str]:
+        """Get a list of fields defined for current this dataclass object."""
+        return list(cls.get_fields_dict())
+
+    @classmethod
     def get_fields_dict(cls) -> Dict[str, dataclasses.Field]:
         """Pass."""
         return {x.name: x for x in cls.get_fields()}

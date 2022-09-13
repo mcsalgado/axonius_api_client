@@ -2,8 +2,9 @@
 """Custom types."""
 import logging
 import pathlib
+import re
 from http import cookiejar as cookielib
-from typing import List, Pattern, TypeVar, Union
+from typing import List, TypeVar, Union
 
 import requests
 
@@ -28,14 +29,14 @@ T_CoerceIntFloat: TypeVar = Union[str, int, float]
 T_CoerceBool: TypeVar = Union[str, int, bool]
 """Coerceable boolean types."""
 
-T_CoerceRe: TypeVar = Union[str, Pattern]
+T_CoerceRe: TypeVar = Union[str, re.Pattern]
 """Value can be a str or regex pattern.
 
 If value is str and starts with "~", will be converted into regex pattern.
 """
 
 T_CoerceReListy: TypeVar = Union[T_CoerceRe, List[T_CoerceRe]]
-"""Value can be a str or regex pattern, or list of str or regex pattern.
+"""Value can be a CSV str or regex pattern, or list of str or regex pattern.
 
 If value(s) are str and start with "~", will be converted into regex pattern.
 """
@@ -63,3 +64,5 @@ T_LoggerStr: TypeVar = Union[logging.Logger, str]
 
 T_Pathy: TypeVar = Union[pathlib.Path, str]
 """Path like types accepted for coercion."""
+
+T_Requests: TypeVar = Union[requests.PreparedRequest, requests.Response]

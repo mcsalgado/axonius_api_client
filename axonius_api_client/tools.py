@@ -9,12 +9,14 @@ import json
 import logging
 import pathlib
 import platform
+import re
 import sys
+import warnings
 from datetime import datetime, timedelta, timezone
 from itertools import zip_longest
 from types import GeneratorType
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Type, Union
-from urllib.parse import urljoin
+from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Type, Union
+from urllib.parse import urljoin, urlparse
 
 import click
 import dateutil.parser
@@ -24,6 +26,7 @@ import dateutil.tz
 from . import INIT_DOTENV, PACKAGE_FILE, PACKAGE_ROOT, VERSION
 from .constants.api import GUI_PAGE_SIZES
 from .constants.general import (
+    CSV_SPLIT,
     DAYS_MAP,
     DEBUG_ARGS,
     DEBUG_TMPL,
@@ -31,6 +34,7 @@ from .constants.general import (
     ERROR_ARGS,
     ERROR_TMPL,
     FILE_DATE_FMT,
+    KV_SPLIT,
     NO,
     NONE_STRS,
     OK_ARGS,
@@ -41,7 +45,7 @@ from .constants.general import (
     WARN_TMPL,
     YES,
 )
-from .constants.typer import T_Pathy
+from .constants.typer import T_CoerceRe, T_Pathy
 from .exceptions import ToolsError
 from .setup_env import find_dotenv, get_env_ax
 
@@ -126,6 +130,48 @@ def check_min_max_valid(
     return errs
 
 
+def is_list(value: Any) -> bool:
+    """Pass."""
+    return isinstance(value, (list, tuple))
+
+
+def coerce_re(
+    value: Union[T_CoerceRe, List[T_CoerceRe]],
+    convert_csv: bool = False,
+    allow_none: bool = False,
+    allow_none_strs: bool = False,
+    none_strs: List[str] = NONE_STRS,
+    error: bool = True,
+) -> Optional[T_CoerceRe]:
+    """Pass."""
+    if convert_csv and isinstance(value, str):
+        value = parse_csv_str(value=value)
+
+    if is_list(value):
+        ret = [
+            coerce_re(
+                value=x,
+                allow_none=allow_none,
+                allow_none_strs=allow_none_strs,
+                none_strs=none_strs,
+                error=error,
+            )
+            for x in value
+        ]
+        return [x for x in ret if isinstance(x, T_CoerceRe)]
+
+    try:
+        if isinstance(value, str) and value.startswith("~"):
+            value = re.compile(value[1:], re.I)
+        if not (isinstance(value, re.Pattern) or is_str(value)):
+            raise TypeError(f"Value {value!r} must be type {T_CoerceRe}, not type {type(value)}")
+    except Exception as exc:
+        if error:
+            raise ToolsError(f"Error coercing value to str or regex pattern: {exc}")
+        value = None
+    return value
+
+
 def coerce_int(
     obj: Any,
     max_value: Optional[Union[int, float]] = None,
@@ -153,8 +199,8 @@ def coerce_int(
     Raises:
         :exc:`ToolsError`: if obj is not able to be converted to int
     """
-    if (allow_none and obj is None) or (
-        allow_none_strs and str(obj).lower().strip() in listify(none_strs)
+    if check_none(
+        value=obj, allow_none=allow_none, allow_none_strs=allow_none_strs, none_strs=none_strs
     ):
         return None
 
@@ -189,17 +235,29 @@ def build_err_msg(errmsg=None, src_obj=None, src_arg=None, errs=None) -> List[st
     return ret
 
 
+def check_none(
+    value: Any,
+    allow_none: bool = False,
+    allow_none_strs: bool = False,
+    none_strs: List[str] = NONE_STRS,
+) -> bool:
+    """Pass."""
+    return (allow_none and value is None) or (
+        allow_none_strs and str(value).lower().strip() in listify(none_strs)
+    )
+
+
 def coerce_int_float(
     value: Union[int, float, str],
     max_value: Optional[int] = None,
     min_value: Optional[int] = None,
     valid_values: Optional[List[int]] = None,
-    allow_none: bool = False,
-    allow_none_strs: bool = False,
-    none_strs: List[str] = NONE_STRS,
     errmsg: Optional[str] = None,
     src_obj: Optional[object] = None,
     src_arg: Optional[str] = None,
+    allow_none: bool = False,
+    allow_none_strs: bool = False,
+    none_strs: List[str] = NONE_STRS,
 ) -> Optional[Union[int, float]]:
     """Convert an object into int or float.
 
@@ -216,8 +274,8 @@ def coerce_int_float(
     Raises:
         :exc:`ToolsError`: if value is not able to be converted to int or float
     """
-    if (allow_none and value is None) or (
-        allow_none_strs and str(value).lower().strip() in listify(none_strs)
+    if check_none(
+        value=value, allow_none=allow_none, allow_none_strs=allow_none_strs, none_strs=none_strs
     ):
         return None
 
@@ -249,10 +307,11 @@ def coerce_int_float(
 def coerce_bool(
     obj: Any,
     errmsg: Optional[str] = None,
-    none_strs: List[str] = NONE_STRS,
     src_obj: Optional[object] = None,
     src_arg: Optional[str] = None,
     allow_none: bool = False,
+    allow_none_strs: bool = False,
+    none_strs: List[str] = NONE_STRS,
 ) -> bool:
     """Convert an object into bool.
 
@@ -267,6 +326,11 @@ def coerce_bool(
 
     def combine(obj):
         return ", ".join([f"{x!r}" for x in obj])
+
+    if check_none(
+        value=obj, allow_none=allow_none, allow_none_strs=allow_none_strs, none_strs=none_strs
+    ):
+        return None
 
     if allow_none and (obj is None or str(obj).lower().strip() in none_strs):
         return None
@@ -494,20 +558,6 @@ def json_load(obj: str, error: bool = True, **kwargs) -> Any:
         if error:
             raise
         return obj
-
-
-def json_log(
-    obj: Any,
-    error: bool = False,
-    trim: Optional[int] = None,
-    trim_lines: bool = True,
-    trim_msg: str = TRIM_MSG,
-    **kwargs,
-) -> str:  # pragma: no cover
-    """Pass."""
-    return json_reload(
-        obj=obj, error=error, trim=trim, trim_lines=trim_lines, trim_msg=trim_msg, **kwargs
-    )
 
 
 def json_reload(
@@ -1623,9 +1673,191 @@ def lowish(value: Any) -> Any:
     return value.lower() if isinstance(value, str) else value
 
 
-def is_tty(stream: Any) -> bool:
+def is_tty(value: Any) -> bool:
     """Pass."""
     try:
-        return stream.isatty()
+        return value.isatty()
     except Exception:
         return False
+
+
+def hide_value(
+    key: Optional[Any] = None,
+    value: Optional[Any] = None,
+    hidden: Optional[str] = None,
+    matches: Optional[List[T_CoerceRe]] = None,
+    error: bool = True,
+) -> Any:
+    """Pass."""
+    matches = coerce_re(value=listify(matches), allow_none=True, allow_none_strs=True, error=error)
+    if isinstance(hidden, str) and matches:
+        s_key = str(key)
+        s_value = str(value)
+        for match in matches:
+            if (
+                isinstance(match, re.Pattern) and (match.search(s_key) or match.search(s_value))
+            ) or (match in [key, value, s_key, s_value]):
+                return hidden
+
+    return hide_values(value=value, hidden=hidden, matches=matches, error=error)
+
+
+def hide_values(
+    value: Any,
+    hidden: Optional[str] = "",
+    matches: Optional[List[T_CoerceRe]] = None,
+    error: bool = True,
+) -> Any:
+    """Clean dict with sensitive information.
+
+    Args:
+        value (Any): dict to hide values of keys & values that match hide_values
+        hidden (Optional[str], optional): str to use to hide values of keys/values
+            that match matches
+        matches (Optional[List[T_CoerceRe]], optional): strs or patterns to check
+            against keys & values in value
+        error (bool, optional): raise errors
+
+    Returns:
+        Any: cleaned value
+    """
+    matches = coerce_re(value=listify(matches), allow_none=True, allow_none_strs=True, error=error)
+    if isinstance(hidden, str) and callable(getattr(value, "items", None)):
+        try:
+            return {
+                k: hide_value(key=k, value=v, hidden=hidden, matches=matches)
+                for k, v in value.items()
+            }
+        except Exception:
+            return value
+    return value
+
+
+def parse_str_csv_kv_pairs(
+    value: Optional[Union[str, IO]] = None,
+    kv_split: str = KV_SPLIT,
+    error: bool = True,
+    csv_args: Optional[dict] = None,
+    src: str = "",
+    allow_none: bool = False,
+    allow_none_strs: bool = False,
+    none_strs: List[str] = NONE_STRS,
+) -> dict:
+    """Pass."""
+    if check_none(
+        value=value, allow_none=allow_none, allow_none_strs=allow_none_strs, none_strs=none_strs
+    ):
+        return {}
+    fh = io.StringIO(value) if isinstance(value, str) else value
+    return parse_str_csv_kv_pairs_fh(
+        fh=fh, kv_split=kv_split, error=error, csv_args=csv_args, src=src
+    )
+
+
+def parse_csv_str(value: str, csv_split: str = CSV_SPLIT, strip: bool = True) -> List[str]:
+    """Pass."""
+    return [x.strip() if strip else x for x in value.split(csv_split) if x.strip()]
+
+
+def parse_str_csv_kv_pairs_fh(
+    fh: IO,
+    kv_split: str = KV_SPLIT,
+    csv_args: Optional[dict] = None,
+    error: bool = True,
+    src: str = "",
+) -> dict:
+    """Pass."""
+    csv_args = csv_args if isinstance(csv_args, dict) else {}
+    ret = {}
+
+    try:
+        rows = list(csv.reader(fh, **csv_args))
+    except Exception as exc:
+        raise ToolsError(f"Unable to parse CSV: {exc}")
+
+    for row_idx, row in enumerate(rows):
+        row_info = f"row #{row_idx + 1}/{len(rows)} [{src}]"
+        for item_idx, item in enumerate(row):
+            info = f"{row_info} item #{item_idx + 1}/{len(row)} {item!r}"
+            try:
+                if not item.strip():
+                    LOG.debug(f"Empty item in {info}")
+                    continue
+
+                if kv_split not in item:
+                    ikey, ivalue = item, None
+                else:
+                    ikey, ivalue = item.split(kv_split, 1)
+
+                ikey = ikey.strip()
+                if not ikey.strip():
+                    msg = f"Empty key {ikey!r} found"
+                    if error:
+                        raise ValueError(msg)
+                    LOG.error(msg)
+                    continue
+
+            except Exception as exc:
+                msg = f"Error in {info}: {exc}"
+                if error:
+                    raise ToolsError(msg)
+                LOG.error(msg)
+                continue
+            else:
+                ret[ikey] = ivalue
+        return ret
+
+
+def clspath(value: object) -> str:
+    """Pass."""
+    return f"{value.__class__.__module}.{value.__class__.__name__}"
+
+
+def warn_toggle(enable: Optional[bool] = False, *args, **kwargs) -> str:
+    """Pass."""
+    action = "default"
+    if enable is True:
+        action = "once"
+    elif enable is False:
+        action = "ignore"
+
+    warnings.simplefilter(action, *args, **kwargs)
+    return action
+
+
+def get_path_fragments(value: str) -> List[str]:
+    """Pass."""
+    return [x for x in urlparse(value).path.strip("/").split("/") if x.strip()]
+
+
+def is_url_path_match(
+    value: str, matches: Optional[List[T_CoerceRe]] = None, error: bool = True
+) -> bool:
+    """Pass."""
+    from ..tools import listify, coerce_re
+
+    matches = coerce_re(value=listify(matches), allow_none=True, allow_none_strs=True, error=error)
+    fragments = get_path_fragments(value)
+
+    if any(isinstance(x, str) and x in fragments for x in matches):
+        return True
+
+    if any(isinstance(x, re.Pattern) and any(x.search(f) for f in fragments) for x in matches):
+        return True
+    return False
+
+
+def json_log(
+    obj: Any,
+    hide: bool = False,
+    hidden: Optional[str] = None,
+    trim: Optional[int] = None,
+    trim_msg: str = TRIM_MSG,
+    matches: Optional[List[T_CoerceRe]] = None,
+) -> str:
+    """Pass."""
+    ret = json_load(obj=obj, error=False)
+    if hide and hasattr(ret, "items"):
+        ret = hide_values(value=ret, hidden=hidden, matches=matches, error=False)
+    ret = json_dump(obj=ret, error=False)
+    return coerce_str(value=ret, trim=trim, trim_msg=trim_msg, trim_lines=True)

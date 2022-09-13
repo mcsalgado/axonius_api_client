@@ -39,6 +39,9 @@ LOG_LEVEL_HTTP: T_LogLevel = "debug"
 LOG_LEVEL_API: T_LogLevel = "debug"
 """default logging level for :obj:`axonius_api_client.api.mixins.ModelMixins`"""
 
+LOG_LEVEL_AUTH: T_LogLevel = "debug"
+"""default logging level for :obj:`axonius_api_client.auth.models.Model`"""
+
 LOG_LEVEL_WIZARD: T_LogLevel = "debug"
 """default logging level for :obj:`axonius_api_client.api.wizards.wizard.Wizard`"""
 

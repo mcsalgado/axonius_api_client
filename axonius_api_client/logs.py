@@ -30,6 +30,15 @@ from .constants.typer import T_LogLevel, T_LogObjs, T_Pathy
 from .exceptions import ToolsError
 from .tools import get_path, is_int
 
+LOG = PACKAGE_LOG
+
+
+def get_log_method(obj: logging.Logger, method: Optional[str] = None) -> callable:
+    """Pass."""
+    method = method.lower() if isinstance(method, str) else method
+    ret = getattr(obj, method, None)
+    return ret if callable(ret) else lambda x: None
+
 
 def gmtime():
     """Set the logging system to use GMT for time strings."""

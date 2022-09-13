@@ -6,7 +6,7 @@ import logging
 from typing import List, Optional
 
 from .data import BaseData
-from .setup_env import KEY_FEATURES, get_env_features
+from .setup_env import ENV_KEYS, get_env_features
 
 PRODUCT_ABOUT: dict = {}
 LOGGER = logging.getLogger("axonius_api_client.features")
@@ -30,7 +30,7 @@ class FeatureEnabled(BaseData):  # pragma: no cover
         """Pass."""
         items = [
             f"FEATURE CHECK {self.feature.name}",
-            f"OS Environment Variable {KEY_FEATURES!r}: {self.env_features}",
+            f"OS Environment Variable {ENV_KEYS.FEATURES!r}: {self.env_features}",
             f"Product about: {self.product_about}",
             f"Feature enabled: {self.result}",
             f"Reason: {self.reason}",
@@ -71,11 +71,11 @@ class Feature(BaseData):  # pragma: no cover
             return FeatureEnabled(result=True, reason=reason, **fe_kwargs)
 
         if f"no_{self.name}" in env_features:
-            reason = f"disabled in OS environment variable {KEY_FEATURES!r}"
+            reason = f"disabled in OS environment variable {ENV_KEYS.FEATURES!r}"
             return FeatureEnabled(result=False, reason=reason, **fe_kwargs)
 
         if self.name in env_features:
-            reason = f"enabled in OS environment variable {KEY_FEATURES!r}"
+            reason = f"enabled in OS environment variable {ENV_KEYS.FEATURES!r}"
             return FeatureEnabled(result=True, reason=reason, **fe_kwargs)
 
         if not min_ver:

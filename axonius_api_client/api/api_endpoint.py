@@ -9,7 +9,6 @@ import requests
 
 from ..constants.typer import T_Json
 from ..exceptions import (
-    InvalidCredentials,
     JsonInvalidError,
     RequestFormatObjectError,
     RequestFormatPathError,
@@ -17,8 +16,10 @@ from ..exceptions import (
     RequestMissingArgsError,
     RequestObjectTypeError,
     ResponseLoadObjectError,
-    ResponseNotOk,
 )
+
+# InvalidCredentials,
+# ResponseNotOk,
 from ..http import Http
 from ..logs import get_obj_log
 from ..tools import combo_dicts, get_cls_path, json_log
@@ -51,6 +52,7 @@ class ApiEndpoint:
     path: str
     """Path to access endpoint, will be string formatted before request is made."""
 
+    # XXX need to typer this, circular import
     request_schema_cls: Optional[Type[Union[BaseSchema, BaseSchemaJson]]]
     """Class of marshmallow or marshmallow_json_api for validating request data."""
 
@@ -64,7 +66,7 @@ class ApiEndpoint:
     """Class of dataclass for containing response data."""
 
     http_args: dict = dataclasses.field(default_factory=dict)
-    """Arguments to always pass to :meth:`Http.__call__` for this endpoint."""
+    """Arguments for to :meth:`axonius_api_client.client.Client.request_endpoint`."""
 
     http_args_required: List[str] = dataclasses.field(default_factory=list)
     """Arguments that must always be supplied to :meth:`perform_request` as http_args={}."""
@@ -88,6 +90,7 @@ class ApiEndpoint:
 
     def __post_init__(self):
         """Pass."""
+        self.LOG: logging.Logger = get_obj_log(obj=self, level=self.log_level)
         for attr in ["request_model_cls", "response_model_cls"]:
             value = getattr(self, attr)
             check_model_cls(obj=value, src=attr)
@@ -111,11 +114,8 @@ class ApiEndpoint:
             f"http_args_required={self.http_args_required}",
         ]
 
-    @property
-    def log(self) -> logging.Logger:
-        """Get the logger for this object."""
-        return get_obj_log(obj=self, level=self.log_level)
-
+    # XXX Client.log_level_schema
+    # XXX move to Client
     def perform_request(
         self, http: Http, request_obj: Optional[BaseModel] = None, raw: bool = False, **kwargs
     ) -> Union[BaseModel, T_Json]:
@@ -131,12 +131,14 @@ class ApiEndpoint:
         Returns:
             Union[BaseModel, T_Json]: the data loaded from the response received
         """
-        self.log.debug(f"{self!r} Performing request with request_obj type {type(request_obj)}")
+        if self.log_level_schemas:  # XXX _emit_log!
+            self.LOG.debug(f"{self!r} Performing request with request_obj type {type(request_obj)}")
         kwargs["response"] = response = self.perform_request_raw(
             http=http, request_obj=request_obj, **kwargs
         )
         return response if raw else self.handle_response(http=http, **kwargs)
 
+    # XXX move to Client
     def perform_request_raw(
         self, http: Http, request_obj: Optional[BaseModel] = None, **kwargs
     ) -> Union[BaseModel, T_Json]:
@@ -155,6 +157,7 @@ class ApiEndpoint:
         response = http(**http_args)
         return response
 
+    # XXX move to Client
     def load_request(self, **kwargs) -> Union[BaseModel, dict, None]:
         """Create a dataclass for a request_obj to send using :meth:`perform_request`.
 
@@ -169,7 +172,8 @@ class ApiEndpoint:
         load_cls = self.request_load_cls
         ret = kwargs or None
         if load_cls:
-            self.log.debug(f"{self!r} Loading request with load_cls {load_cls} kwargs {kwargs}")
+            if self.log_schemas:  # XXX
+                self.LOG.debug(f"{self!r} Loading request with load_cls {load_cls} kwargs {kwargs}")
             try:
                 ret = load_cls.load_request(**kwargs)
             except Exception as exc:
@@ -177,9 +181,11 @@ class ApiEndpoint:
                 details = [f"cls: {load_cls}", f"kwargs: {json_log(kwargs)}"]
                 raise RequestLoadObjectError(api_endpoint=self, err=err, details=details, exc=exc)
 
-            self.log.debug(f"{self!r} Loaded request into {load_cls}")
+            if self.log_schemas:  # XXX
+                self.LOG.debug(f"{self!r} Loaded request into {load_cls}")
         return ret
 
+    # XXX move to Client
     def load_response(
         self, data: dict, http: Http, unloaded: bool = False, **kwargs
     ) -> Union[BaseModel, T_Json]:
@@ -197,9 +203,10 @@ class ApiEndpoint:
         if not unloaded:
             load_cls = self.response_load_cls
             if load_cls:
-                self.log.debug(
-                    f"{self!r} Loading response with data type {type(data)}, load_cls={load_cls}"
-                )
+                if self.log_schemas:  # XXX
+                    self.LOG.debug(
+                        f"{self!r} Loading response with data type {type(data)}, load_cls={load_cls}"
+                    )
                 try:
                     data = load_cls.load_response(data=data, http=http, **kwargs)
                 except Exception as exc:
@@ -208,8 +215,8 @@ class ApiEndpoint:
                     raise ResponseLoadObjectError(
                         api_endpoint=self, err=err, details=details, exc=exc
                     )
-
-                self.log.debug(f"{self!r} Loaded response into {load_cls}")
+                if self.log_schemas:  # XXX
+                    self.LOG.debug(f"{self!r} Loaded response into {load_cls}")
         return data
 
     @property
@@ -222,6 +229,7 @@ class ApiEndpoint:
         """Get the class that should be used to load response data."""
         return self.response_schema_cls or self.response_model_cls or None
 
+    # XXX move to Client
     def handle_response(
         self, http: Http, response: requests.Response, **kwargs
     ) -> Union[BaseModel, T_Json]:
@@ -247,6 +255,7 @@ class ApiEndpoint:
             )
         return data
 
+    # XXX move to Client
     def get_response_json(self, response: requests.Response) -> T_Json:
         """Get the JSON from a response.
 
@@ -263,11 +272,13 @@ class ApiEndpoint:
             return response.json()
         except Exception as exc:
             msg = f"Response has invalid JSON\nWhile in {self}"
-            self.log.exception(msg)
+            self.LOG.exception(msg)
             if self.response_json_error:
                 raise JsonInvalidError(msg=msg, response=response, exc=exc)
             return response.text
 
+    # XXX moved to Http
+    '''
     def check_response_status(
         self,
         http: Http,
@@ -311,7 +322,9 @@ class ApiEndpoint:
             response.raise_for_status()
         except Exception as exc:
             raise ResponseNotOk(msg="\n".join(msgs), response=response, exc=exc)
+    '''
 
+    # XXX move to Client
     def get_http_args(
         self, request_obj: Optional[BaseModel] = None, http_args: Optional[dict] = None, **kwargs
     ) -> dict:
@@ -335,6 +348,7 @@ class ApiEndpoint:
         self.check_missing_args(args=args)
         return args
 
+    # XXX move to Client
     def _get_dump_object_method(
         self, request_obj: Optional[BaseModel] = None, **kwargs
     ) -> Tuple[str, callable]:
@@ -354,6 +368,7 @@ class ApiEndpoint:
             raise RequestFormatObjectError(api_endpoint=self, err=err, details=details)
         return key, dump_method
 
+    # XXX move to Client
     def _call_dump_object_method(
         self, dump_method: callable, request_obj: Optional[BaseModel] = None, **kwargs
     ) -> dict:
@@ -370,6 +385,7 @@ class ApiEndpoint:
             ]
             raise RequestFormatObjectError(api_endpoint=self, err=err, details=details, exc=exc)
 
+    # XXX move to Client
     def dump_object(self, request_obj: Optional[BaseModel] = None, **kwargs) -> dict:
         """Serialize a dataclass model for a request.
 
@@ -392,6 +408,7 @@ class ApiEndpoint:
             )
         return ret
 
+    # XXX move to Client
     def dump_path(self, request_obj: Optional[BaseModel] = None, **kwargs) -> str:
         """Get the path to use for this endpoint.
 
@@ -421,6 +438,7 @@ class ApiEndpoint:
             ]
             raise RequestFormatPathError(api_endpoint=self, err=err, details=details, exc=exc)
 
+    # XXX ???
     def check_missing_args(self, args: dict):
         """Check for missing required arguments.
 
@@ -436,6 +454,7 @@ class ApiEndpoint:
             details = ["HTTP arguments supplied: {json_log(args)}"]
             raise RequestMissingArgsError(api_endpoint=self, err=err, details=details)
 
+    # XXX ???
     def check_request_obj(self, request_obj: BaseModel):
         """Check that the supplied request object is an instance of :attr:`request_model_cls`.
 

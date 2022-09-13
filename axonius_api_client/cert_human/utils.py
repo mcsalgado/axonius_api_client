@@ -189,3 +189,13 @@ def human_size(
         if value < 1024.0:
             return f"{value:0.{decimals}f} {size}"
         value /= 1024.0
+
+
+def human_len(
+    value: Optional[Union[str, bytes]] = None, allow_none: bool = True, decimals: int = 2
+) -> str:
+    """Get human readable size of a str."""
+    if isinstance(value, (str, bytes)):
+        return human_size(value=len(value), decimals=decimals)
+    else:
+        return ""

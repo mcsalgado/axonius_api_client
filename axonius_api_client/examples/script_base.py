@@ -33,7 +33,7 @@ import axonius_api_client as axonapi
 client_args = {}
 
 # --- get the URL, API key, API secret, & certwarn from the default ".env" file
-client_args.update(axonapi.get_env_connect())
+# client_args.update(axonapi.get_env_connect())
 
 # --- OR override OS env vars with the values from a custom .env file
 # client_args.update(axonapi.get_env_connect(ax_env="/path/to/envfile", override=True))
@@ -44,15 +44,18 @@ client_args.update(axonapi.get_env_connect())
 # client_args["secret"] = ""
 
 # --- Enable logging
+# client_args["log_file"] = True  # enable logging to file
+# client_args["log_file_path"] = "/path/to/log_dir/"  # over ride default log file dir
+# client_args["log_file_name"] = "log_file"  # over ride default log file name
 # client_args["log_console"] = True  # enable logging to console
-# client_args["log_request_attrs"] = "all"  # log all request attributes
 # client_args["log_request_body"] = True  # log all request bodies
-# client_args["log_response_attrs"] = "all"  # log all response attributes
 # client_args["log_response_body"] = True  # log all response bodies
+# client_args["log_request_attrs"] = "all"  # log all request attributes
+# client_args["log_response_attrs"] = "all"  # log all response attributes
 
 # create a client using the url, key, and secret from OS env
-client = axonapi.Connect(**client_args)
+client = axonapi.Client(**client_args)
 
 j = client.jdump  # json dump helper
 
-client.start()  # connect to axonius
+# client.start()  # connect to axonius

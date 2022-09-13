@@ -92,6 +92,10 @@ class ConnectError(AxonError):
     """Error in connect client."""
 
 
+class ClientError(ConnectError):
+    """Error in connect client."""
+
+
 class HttpError(AxonError):
     """Errors for HTTP client."""
 
@@ -182,9 +186,9 @@ class ResponseError(ApiError):
         ]
         middle = [
             "Request Object:",
-            json_log(obj=response.request.body),
+            json_log(response.request.body),
             "Response Object:",
-            json_log(obj=response.text),
+            json_log(response.text),
         ]
         msgs = [*pre, "", *middle, "", *pre]
         return "\n".join(msgs)

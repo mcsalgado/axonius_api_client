@@ -65,3 +65,17 @@ EMAIL_RE_STR: str = (
 EMAIL_RE: Pattern = re.compile(EMAIL_RE_STR, re.I)
 DAYS_MAP: dict = dict(zip(range(7), calendar.day_name))
 NONE_STRS: List[str] = ["none", "null", ""]
+CSV_SPLIT: str = ","
+KV_SPLIT: str = "="
+
+
+TERMS: str = """Acceptance of Axonius Terms and Conditions.
+
+I have read and agree to the Terms and Conditions and the Privacy Policy.
+
+I understand and agree that any future purchase of a license to use an
+Axonius Solution shall be governed by the Terms and Conditions and Privacy Policy as well.
+
+Terms and Conditions: https://www.axonius.com/terms-conditions/
+Privacy Policy: https://www.axonius.com/privacy-policy
+"""

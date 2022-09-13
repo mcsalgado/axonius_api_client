@@ -28,8 +28,8 @@ class ApiKey(Mixins):
         if self.is_logged_in:
             raise AlreadyLoggedIn(f"Already logged in on {self}")
 
-        self.http.session.headers["api-key"] = self._creds["key"]
-        self.http.session.headers["api-secret"] = self._creds["secret"]
+        self.http.headers["api-key"] = self._creds["key"]
+        self.http.headers["api-secret"] = self._creds["secret"]
         self._validate()
         self._logged_in = True
         self.LOG.debug(f"Successfully logged in using {self._cred_fields}")

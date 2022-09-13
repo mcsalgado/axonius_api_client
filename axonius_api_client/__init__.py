@@ -2,31 +2,27 @@
 """Python API Client for Axonius.
 
 See Also:
-    :obj:`connect.Connect` for creating a client for using this package.
+    :obj:`client.Client` for creating a client for using this package.
 
 """
 import logging
 
 from . import setup_env, version
 
-# import sys
-
-
-# print("oh hai")
-# sys.exit()
 PACKAGE_ROOT: str = __package__
 PACKAGE_FILE: str = __file__
 VERSION: str = version.__version__
 __version__ = VERSION
 
-LOG: logging.Logger = logging.getLogger(PACKAGE_ROOT)
+PACKAGE_LOG: logging.Logger = logging.getLogger(PACKAGE_ROOT)
 """root logger used by entire package, named after package."""
 
 DEFAULT_PATH: str = setup_env.DEFAULT_PATH
 """default path to use throughout the package."""
 
 load_dotenv = setup_env.load_dotenv
-get_env_connect = setup_env.get_env_connect
+get_env_client = setup_env.get_env_client
+get_env_connect = get_env_client
 
 PRE_DOTENV: dict = setup_env.get_env_ax()
 """AX.* env variables before loading dotenv."""
@@ -38,7 +34,19 @@ POST_DOTENV: dict = setup_env.get_env_ax()
 """AX.* env variables after loading dotenv."""
 
 try:
-    from . import api, auth, cert_human, cli, constants, data, exceptions, http, logs, tools
+    from . import (
+        api,
+        cert_human,
+        cli,
+        constants,
+        data,
+        exceptions,
+        http,
+        logs,
+        tools,
+        connect,
+        client,
+    )
     from .api import (
         ActivityLogs,
         Adapters,
@@ -62,23 +70,19 @@ try:
         WizardText,
         Vulnerabilities,
     )
-    from .auth import ApiKey
-    from .connect import Connect
+    from .connect import Connect, Client
     from .features import Features
     from .http import Http
 except Exception:  # pragma: no cover
     raise
 
 
-LOG = logs.LOG
-
 __all__ = (
     # API client
     "Connect",
+    "Client",
     # HTTP client
     "Http",
-    # API authentication
-    "ApiKey",
     # API
     "Adapters",
     "Cnx",
@@ -107,8 +111,9 @@ __all__ = (
     "Vulnerabilities",
     # modules
     "api",
-    "auth",
     "cli",
+    "connect",
+    "client",
     "constants",
     "data",
     "exceptions",
